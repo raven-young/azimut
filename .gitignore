@@ -1,0 +1,5 @@
+.DS_Store
+_site/
+# source material kept local (large originals and third-party PDFs)
+Assets/
+*.pdf
