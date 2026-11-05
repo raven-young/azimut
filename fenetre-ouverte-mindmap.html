@@ -1807,11 +1807,25 @@ document.addEventListener('keydown', e=>{ if(e.key!=='Escape' || e.target.id==='
   else if(state.fam) unfocusFam();
   else goTop(); });
 let qt;
-document.getElementById('q').addEventListener('input', e=>{ clearTimeout(qt); qt=setTimeout(()=>{
-  state.q=norm(e.target.value.trim());
+function runSearch(v){
+  state.q=norm(v.trim());
   if(state.q && state.top && !state.cons){ if(state.em) document.getElementById('v-app').click(); else goApp(); }
   const lit=computeLit();
-  if(lit && state.q){ FAMILIES.forEach(f=>{ if(lit.has(f.id)) expanded.add(f.n); }); renderMap(); } else applyHighlight(); }, 120); });
+  if(lit && state.q){ FAMILIES.forEach(f=>{ if(lit.has(f.id)) expanded.add(f.n); }); renderMap(); } else applyHighlight();
+  return lit; }
+document.getElementById('q').addEventListener('input', e=>{ clearTimeout(qt); qt=setTimeout(()=>runSearch(e.target.value), 120); });
+/* Enter: search now and open the best-matching métier (exact name, then name starting with the query, then first hit) */
+document.getElementById('q').addEventListener('keydown', e=>{
+  if(e.key!=='Enter' || e.isComposing) return;
+  e.preventDefault(); clearTimeout(qt);
+  const lit=runSearch(e.target.value); if(!state.q || !lit) return;
+  const hits=allProfs.filter(p=>lit.has(p.uid)); if(!hits.length) return;
+  const nm=p=>norm(p.name);
+  const best=hits.find(p=>nm(p)===state.q) || hits.find(p=>nm(p).startsWith(state.q)) || hits[0];
+  select(best.key, true);
+  const d=document.getElementById('detail-wrap');
+  if(d && d.getBoundingClientRect().top>innerHeight) d.scrollIntoView({block:'start', behavior: DUR?'smooth':'auto'});
+});
 document.querySelectorAll('.chips .chip').forEach(b=>b.onclick=()=>{ const l=+b.dataset.l;
   state.levels.has(l)?state.levels.delete(l):state.levels.add(l); b.setAttribute('aria-pressed', String(state.levels.has(l))); applyHighlight(); });
 
