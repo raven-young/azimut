@@ -2394,8 +2394,24 @@ function plToCh(){
   try{ history.replaceState(null,'','#places'); }catch(e){}
   plUpdate(); setUI();
 }
+/* geocoded points are postcode centres, which can fall in a lake: move each one to the nearest spot on Vaud land
+   (a little inland, tested against the same outline and lake shapes the map draws) */
+function plSnap(){
+  const vd = document.getElementById('pl-vd'), lk = document.querySelector('#pl .pl-lakes');
+  if(!vd || !lk || !vd.isPointInFill) return;
+  const land = (x,y) => { const p = new DOMPoint(x,y); return vd.isPointInFill(p) && !lk.isPointInFill(p); };
+  const firm = (x,y) => land(x,y) && [[1,0],[-1,0],[0,1],[0,-1]].every(([dx,dy]) => land(x+dx*1.2, y+dy*1.2));
+  plData.locs.forEach(l => {
+    if(firm(l.x,l.y)) return;
+    for(let r=0.5; r<=25; r+=0.5){ let best=null;
+      for(let a=0; a<32; a++){ const x=l.x+r*Math.cos(a*Math.PI/16), y=l.y+r*Math.sin(a*Math.PI/16); if(firm(x,y)){ best=[x,y]; break; } }
+      if(best){ [l.x,l.y]=best; return; } }
+  });
+  plData.snapped = true;
+}
 function plUpdate(){
   if(!state.pl || !document.getElementById('pl-side')) return;
+  if(plData && !plData.snapped) plSnap();
   const locs = plLocs(), n = locs.reduce((a,d)=>a+d.n, 0);
   document.getElementById('pl-cr-ch').disabled = !plZoomed;
   document.getElementById('pl-cr-vd').hidden = !plZoomed;
