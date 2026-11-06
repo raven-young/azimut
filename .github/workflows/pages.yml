@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.58 has no browser build for 26.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
