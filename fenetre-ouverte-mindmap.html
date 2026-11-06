@@ -393,6 +393,14 @@ aside h2{font-family:var(--display);font-size:12px;letter-spacing:.09em;text-tra
 .pl-lakes{fill:color-mix(in srgb,#4a90c8 34%,var(--bg));pointer-events:none}
 .pl-dot{fill:var(--accent);fill-opacity:.72;stroke:var(--surface);stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer;transition:fill-opacity .15s}
 .pl-dot:hover,.pl-dot:focus-visible,.pl-dot.on{fill-opacity:1;stroke:var(--ink);stroke-width:2;outline:none}
+.pl-emk{fill:var(--surface);stroke:var(--ink);stroke-width:2;vector-effect:non-scaling-stroke;cursor:pointer}
+.pl-emk:hover,.pl-emk:focus-visible,.pl-emk.on{fill:var(--ink);outline:none}
+.pl-eml{fill:var(--ink);font-weight:800;paint-order:stroke;stroke:var(--bg);stroke-linejoin:round;pointer-events:none}
+.pl-hint{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:0 0 12px;font-size:13px}
+.pl-hint button{font:inherit;font-weight:700;color:var(--accent);background:none;border:0;padding:0 6px 0 0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.pl-em-jobs{margin:4px 0 12px;padding-left:18px}
+.pl-em-jobs li{margin:2px 0}
+.pl-em-jobs small{color:var(--muted)}
 .pl-call{pointer-events:none;transition:opacity .3s}
 .pl-call text{fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
 .pl-call .t1{font:800 26px var(--display)}
@@ -1183,7 +1191,7 @@ const VDP = 'https://www.vd.ch/';
 /* Écoles de métiers du canton de Vaud, apprentissages à plein temps · délais 2026-2027
    (DGEP, « EM_synthese_WEB.pdf », octobre 2026). Professions are keyed to the DATA/OC_SLUG names above. */
 const J = (label, key, sp) => { const slug = key && OC_SLUG[key];
-  return {label, level: key ? +key.split('|')[1] : 0, url: slug ? OC_BASE+slug : OC_SEARCH, exact: !!slug, sp}; };
+  return {label, key, level: key ? +key.split('|')[1] : 0, url: slug ? OC_BASE+slug : OC_SEARCH, exact: !!slug, sp}; };
 const PRE = (label, url, sp='1 an pour se préparer à entrer en apprentissage') => ({label, level:0, pre:true, url, sp});
 const EM = [
   {abbr:'CEPV', name:'Centre d’enseignement professionnel de Vevey', city:'Vevey', url:'https://www.cepv.ch',
@@ -2323,7 +2331,19 @@ const plEl = document.getElementById('pl');
 const PL_SRC = ['vd-places.json', 'https://raven-young.github.io/azimut/vd-places.json'];
 const PL_SITE = 'https://raven-young.github.io/azimut/#places-vaud';
 const plProj = d3.geoMercator().scale(GEO.scale).translate(GEO.translate);
-let plData = null, plLoading = null, plZoomed = false, plSel = null, plQ = '', plZ = null, plK = 1, plDom = null, plMode = 'lieu';
+let plData = null, plLoading = null, plZoomed = false, plSel = null, plQ = '', plZ = null, plK = 1, plDom = null, plMode = 'lieu', plEm = null;
+/* « Par école » : the écoles de métiers (EM) on the map, their sites (lon, lat), and the listings that belong to them:
+   placed by the school itself (company name carries its abbreviation, e.g. COFOP) or in a métier it teaches (pids) */
+const PL_EM_AT = {CEPV:[[6.8432,46.4628,'Vevey']], CPNV:[[6.6411,46.7785,'Yverdon-les-Bains'],[6.5034,46.8222,'Sainte-Croix'],[6.9381,46.8209,'Payerne']],
+  ERACOM:[[6.6237,46.5236,'Lausanne']], ESSC:[[6.4983,46.5113,'Morges'],[6.8530,46.4660,'Vevey'],[6.5097,46.6686,'Pompaples']],
+  ETML:[[6.6139,46.5237,'Lausanne']], ETVJ:[[6.2343,46.6080,'Le Sentier']], COFOP:[[6.6486,46.5340,'Lausanne']]};
+const PL_EM = EM.map((s,i) => ({s, i, at:(PL_EM_AT[s.abbr]||[]).map(([lon,lat,c]) => { const [x,y] = plProj([lon,lat]); return {x, y, c}; }),
+  pids:new Set(s.jobs.map(j => j.key && OC_INFO[j.key] && OC_INFO[j.key].id).filter(Boolean)),
+  re: s.abbr==='Commerce' ? null : new RegExp('\\b'+norm(s.abbr)+'\\b'),
+  q: norm([s.abbr, s.name, s.city, ...s.jobs.map(j => j.label)].join(' '))}));
+const plEmOwn = (e, it) => !!(e.re && e.re.test(norm(it[0])));
+const plEmHas = (e, it) => plEmOwn(e, it) || !!(plData && plData.pids && it[3]!=null && e.pids.has(plData.pids[it[3]]));
+const plEmHits = () => plQ.length < 2 ? PL_EM : PL_EM.filter(e => e.q.includes(plQ));
 /* each listing carries the orientation.ch profession id it was found under (plData.pids) → its domain(s) in this explorer */
 const PL_DOM = {}; uniq.forEach(u => { const f = OC_INFO[u.occ[0].name+'|'+u.level]; if(f && f.id) PL_DOM[f.id] = [...new Set(u.occ.map(p=>p.domain.num))]; });
 const plDomsOf = it => (plData && plData.pids && it[3]!=null && PL_DOM[plData.pids[it[3]]]) || [];
@@ -2336,7 +2356,8 @@ function plLoad(){
   return plLoading;
 }
 const plDate = iso => new Date(iso).toLocaleDateString('fr-CH',{day:'numeric',month:'long',year:'numeric'});
-const plItems = l => l.items.filter(it => (!plQ || norm(it[1]+' '+it[0]).includes(plQ)) && (!plDom || plDomsOf(it).includes(plDom)));
+const plItems = l => l.items.filter(it => plMode==='ecole' ? (plEm==null || plEmHas(PL_EM[plEm], it))
+  : (!plQ || norm(it[1]+' '+it[0]).includes(plQ)) && (!plDom || plDomsOf(it).includes(plDom)));
 const plN = items => items.reduce((a,it)=>a+(it[2]||1), 0);   // a listing can offer several places
 const plByDom = items => { const c = {}; items.forEach(it => plDomsOf(it).forEach(d => c[d] = (c[d]||0) + (it[2]||1))); return c; };
 const plTopColor = items => { const c = plByDom(items), top = Object.keys(c).sort((a,b) => c[b]-c[a])[0]; return top ? swatch(domByNum[top].hue) : null; };
@@ -2347,7 +2368,7 @@ function openPl(vaud=false){
   if(state.em){ state.em=false; tm.hidden=true; tm.innerHTML=''; svg.style('visibility',null); }
   if(state.dom) closeDomain();
   closeQuiz(); hideTip();
-  state.pl = true; plZoomed = false; plSel = null; plK = 1; appEl.classList.add('pl-on'); plEl.hidden = false;
+  state.pl = true; plZoomed = false; plSel = null; plEm = null; plK = 1; appEl.classList.add('pl-on'); plEl.hidden = false;
   renderPl(); setUI();
   try{ history.replaceState(null,'','#places'); }catch(e){}
   plLoad().then(()=>{ if(!state.pl) return; plUpdate(); if(vaud) plToVD(false); });
@@ -2362,24 +2383,24 @@ function renderPl(){
   const [x,y,w,h] = GEO.vdBox;
   plEl.innerHTML = `<div class="pl-bar">
       <nav class="pl-crumbs" aria-label="Carte"><button type="button" class="pl-cr" id="pl-cr-ch">Suisse</button><span id="pl-cr-vd" hidden>› Canton de Vaud</span></nav>
-      <div class="seg pl-mode" id="pl-mode" role="group" aria-label="Chercher les places" hidden><button type="button" data-m="lieu" aria-pressed="true">Par lieu</button><button type="button" data-m="dom" aria-pressed="false">Par domaine</button></div>
+      <div class="seg pl-mode" id="pl-mode" role="group" aria-label="Chercher les places" hidden><button type="button" data-m="lieu" aria-pressed="true">Par lieu</button><button type="button" data-m="dom" aria-pressed="false">Par domaine</button><button type="button" data-m="ecole" aria-pressed="false">Par école de métiers</button></div>
       <span class="pl-stat" id="pl-stat"></span>
-      <div class="search pl-search" id="pl-sw" hidden><label for="pl-q" class="sr">Filtrer les places</label>
+      <div class="search pl-search" id="pl-sw" hidden><label for="pl-q" class="sr" id="pl-ql">Filtrer les places</label>
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 11l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input id="pl-q" type="search" placeholder="Filtrer : métier ou entreprise…" autocomplete="off"></div>
+        <input id="pl-q" type="search" placeholder="Filtrer : métier, entreprise ou école…" autocomplete="off"></div>
     </div>
     <div class="pl-map"><svg id="pl-svg" viewBox="0 0 ${GEO.w} ${GEO.h}" role="img" aria-label="Carte de la Suisse : le canton de Vaud est cliquable"><g id="pl-g">
       <path class="pl-ch" d="${GEO.ch}"/><path class="pl-cantons" d="${GEO.cantons}"/>
       <path class="pl-vd" id="pl-vd" d="${GEO.vd}" tabindex="0" role="button" aria-label="Canton de Vaud : voir les places d’apprentissage"><title>Canton de Vaud : clique pour voir les places d’apprentissage</title></path>
       <path class="pl-communes" d="${GEO.communes}"/><path class="pl-lakes" d="${GEO.lakes}"/>
-      <g id="pl-dots"></g>
+      <g id="pl-dots"></g><g id="pl-em"></g>
       <g class="pl-call" transform="translate(${(x+w*0.62).toFixed(1)},${(y+h*0.32).toFixed(1)})"><text class="t1" text-anchor="middle">Vaud</text><text class="t2" id="pl-call2" text-anchor="middle" y="22">clique pour voir les places</text></g>
     </g></svg>
     <div class="pl-tools" id="pl-tools" hidden><button type="button" id="pl-in" aria-label="Zoomer">+</button><button type="button" id="pl-out" aria-label="Dézoomer">−</button></div></div>
     <div class="pl-side" id="pl-side" aria-live="polite"></div>`;
   const s = d3.select('#pl-svg'), g = d3.select('#pl-g');
   plZ = d3.zoom().scaleExtent([1, 40]).filter(ev => plZoomed && !ev.button)
-    .on('zoom', ev => { g.attr('transform', ev.transform); plK = ev.transform.k; d3.selectAll('.pl-dot').attr('r', d => plR(d.n)); });
+    .on('zoom', ev => { g.attr('transform', ev.transform); plK = ev.transform.k; d3.selectAll('.pl-dot').attr('r', d => plR(d.n)); plEmDraw(); });
   s.call(plZ).on('dblclick.zoom', null);
   const vd = document.getElementById('pl-vd');
   vd.onclick = () => { if(!plZoomed) plToVD(true); };
@@ -2387,7 +2408,7 @@ function renderPl(){
   document.getElementById('pl-cr-ch').onclick = () => plToCh();
   document.getElementById('pl-in').onclick = () => s.transition().duration(300).call(plZ.scaleBy, 1.6);
   document.getElementById('pl-out').onclick = () => s.transition().duration(300).call(plZ.scaleBy, 1/1.6);
-  plEl.querySelectorAll('#pl-mode button').forEach(b => b.onclick = () => { plMode = b.dataset.m; plDom = null; plSel = null; plUpdate(); });
+  plEl.querySelectorAll('#pl-mode button').forEach(b => b.onclick = () => { plMode = b.dataset.m; plDom = null; plSel = null; plEm = null; plUpdate(); });
   let t; document.getElementById('pl-q').addEventListener('input', e => { clearTimeout(t); t = setTimeout(()=>{ plQ = norm(e.target.value.trim()); plSel = null; plUpdate(); }, 150); });
   plUpdate();
 }
@@ -2432,9 +2453,12 @@ function plUpdate(){
   md.hidden = !plZoomed || !plData || !plData.pids;
   md.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === plMode)));
   document.getElementById('pl-tools').hidden = !plZoomed;
+  const qi = document.getElementById('pl-q');
+  qi.placeholder = plMode==='ecole' ? 'École, ville ou métier…' : 'Filtrer : métier, entreprise ou école…';
+  document.getElementById('pl-ql').textContent = plMode==='ecole' ? 'Chercher une école de métiers' : 'Filtrer les places';
   document.getElementById('pl-call2').textContent = plData ? `${nPl(plData.n)} · clique pour voir` : 'clique pour voir les places';
   document.getElementById('pl-stat').textContent = !plData ? '' : plZoomed
-    ? `${nPl(n)} dans ${locs.length} localité${locs.length>1?'s':''}${plDom?' · '+domByNum[plDom].name:''}${plQ?' (filtre actif)':''} · orientation.ch, ${plDate(plData.updated)}`
+    ? `${nPl(n)} dans ${locs.length} localité${locs.length>1?'s':''}${plDom?' · '+domByNum[plDom].name:''}${plMode==='ecole'&&plEm!=null?' · '+PL_EM[plEm].s.abbr:''}${plQ&&plMode!=='ecole'?' (filtre actif)':''} · orientation.ch, ${plDate(plData.updated)}`
     : `Mise à jour quotidienne · ${plDate(plData.updated)}`;
   const dots = d3.select('#pl-dots').selectAll('circle').data(plZoomed ? locs : [], d => d.l.k);
   dots.exit().remove();
@@ -2448,12 +2472,35 @@ function plUpdate(){
       .attr('aria-label', d => `${d.l.name} : ${nPl(d.n)}`)
       .call(c => c.select('title').text(d => `${d.l.name} · ${nPl(d.n)}`));
   d3.select('#pl-dots').selectAll('circle').sort((a,b) => b.n - a.n);
+  plEmDraw();
   document.getElementById('pl-side').innerHTML = plSide(locs, n);
   const side = document.getElementById('pl-side');
   side.querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { plSel = b.dataset.loc; plUpdate(); });
   const go = side.querySelector('.pl-go'); if(go) go.onclick = () => plToVD(true);
   side.querySelectorAll('[data-dom]').forEach(b => b.onclick = () => { plDom = +b.dataset.dom; plSel = null; plUpdate(); });
-  const bk = side.querySelector('.pl-back'); if(bk) bk.onclick = () => { if(plSel) plSel = null; else plDom = null; plUpdate(); };
+  side.querySelectorAll('[data-em]').forEach(b => b.onclick = () => plPickEm(+b.dataset.em));
+  const bk = side.querySelector('.pl-back'); if(bk) bk.onclick = () => { if(plSel) plSel = null; else if(plEm!=null) plEm = null; else plDom = null; plUpdate(); };
+}
+function plPickEm(i){ plMode = 'ecole'; plDom = null; plSel = null; plEm = i; plUpdate(); }
+/* school markers (diamonds, a constant size on screen); shown in « Par école », the chosen school labelled */
+function plEmDraw(){
+  const show = plZoomed && plMode==='ecole', s = 6/plK;
+  const pts = show ? PL_EM.filter(e => plEm==null ? plEmHits().includes(e) : e.i===plEm).flatMap(e => e.at.map((a,j) => ({e, a, k:e.s.abbr+j}))) : [];
+  const g = d3.select('#pl-em'), m = g.selectAll('rect').data(pts, d => d.k);
+  m.exit().remove();
+  m.enter().append('rect').attr('class','pl-emk').attr('tabindex',0).attr('role','button')
+      .on('click', (ev,d) => { ev.stopPropagation(); plPickEm(d.e.i); })
+      .on('keydown', (ev,d) => { if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); plPickEm(d.e.i); } })
+      .call(r => r.append('title').text(d => `${d.e.s.abbr} · ${d.e.s.name} · ${d.a.c}`))
+      .attr('aria-label', d => `${d.e.s.abbr}, ${d.e.s.name}, ${d.a.c}`)
+    .merge(m).classed('on', d => d.e.i===plEm)
+      .attr('x', d => d.a.x - s).attr('y', d => d.a.y - s).attr('width', 2*s).attr('height', 2*s)
+      .attr('transform', d => `rotate(45 ${d.a.x} ${d.a.y})`);
+  const t = g.selectAll('text').data(plEm!=null ? pts : [], d => d.k);
+  t.exit().remove();
+  t.enter().append('text').attr('class','pl-eml').merge(t)
+    .attr('x', d => d.a.x + 1.6*s).attr('y', d => d.a.y + 0.6*s).style('font-size', (13/plK)+'px').style('stroke-width', (3/plK)+'px')
+    .text(d => d.e.s.abbr + (d.e.at.length>1 ? ' · '+d.a.c : ''));
 }
 function plSide(locs, n){
   const src = plData ? `<p class="src">Places publiées sur <a href="https://www.orientation.ch/fr/recherche/apprentissages?canton=VD" target="_blank" rel="noopener">orientation.ch ↗</a>, relevées le ${plDate(plData.updated)}. Le lieu affiché est le lieu de formation. Pour postuler, ouvre l’annonce sur orientation.ch.</p>` : '';
@@ -2466,18 +2513,43 @@ function plSide(locs, n){
     <div class="pl-big">${plData.n.toLocaleString('fr-CH')}</div><p>places publiées dans le canton de Vaud</p>
     <button type="button" class="pl-go">Voir le canton de Vaud →</button>${src}`;
   const sel = plSel && locs.find(d => d.l.k === plSel);
+  const emHint = plMode!=='ecole' && plQ.length>=2 && plEmHits().length ? `<p class="pl-hint">École${plEmHits().length>1?'s':''} de métiers : ${plEmHits().map(e => `<button type="button" data-em="${e.i}">${esc(e.s.abbr)}</button>`).join('')}</p>` : '';
   if(sel){
     const by = new Map(); sel.items.forEach(([c,t,k]) => { if(!by.has(t)) by.set(t, []); by.get(t).push([c, k||1]); });
     const jobs = [...by].map(([t,cs]) => [t, cs, cs.reduce((a,x)=>a+x[1],0)]).sort((a,b) => b[2] - a[2] || a[0].localeCompare(b[0],'fr'));
-    return `<button type="button" class="pl-back">← ${plDom ? esc(domByNum[plDom].name) : plMode==='dom' ? 'Tous les domaines' : 'Toutes les localités'}</button>
+    return `<button type="button" class="pl-back">← ${plMode==='ecole' ? (plEm!=null ? esc(PL_EM[plEm].s.abbr) : 'Toutes les écoles') : plDom ? esc(domByNum[plDom].name) : plMode==='dom' ? 'Tous les domaines' : 'Toutes les localités'}</button>
       <div class="k">${sel.l.npa?esc(sel.l.npa)+' · ':''}canton de Vaud</div><h3>${esc(sel.l.name)}</h3>
       <p><b>${nPl(sel.n)}</b> dans ${jobs.length} métier${jobs.length>1?'s':''}${plQ?' (filtre actif)':''}</p>
       ${jobs.map(([t,cs,k]) => `<div class="pl-job"><div>${esc(t)}<span>${k}</span></div><ul>${cs.map(([c,m])=>`<li>${esc(c)}${m>1?` · ${m} places`:''}</li>`).join('')}</ul></div>`).join('')}
       ${src}`;
   }
+  if(plMode==='ecole' && plEm==null){
+    const hits = plEmHits(), all = plData.locs.flatMap(l => l.items);
+    return `<div class="k">Canton de Vaud · écoles de métiers</div><h3>${plQ.length>=2 ? `${hits.length} école${hits.length>1?'s':''} sur ${EM.length}` : `${EM.length} écoles de métiers`}</h3>
+      <p>L’apprentissage à plein temps, en école plutôt qu’en entreprise. Cherche une école, une ville ou un métier, puis choisis une école : tu vois ses métiers, ses dates et les places publiées dans les mêmes métiers. ◆ = site de l’école.</p>
+      ${hits.length ? `<div class="pl-locs">${hits.map(e => `<button type="button" class="pl-loc" data-em="${e.i}"><span><span><b>${esc(e.s.abbr)}</b> · ${esc(e.s.city)}</span></span><b>${plN(all.filter(it => plEmHas(e, it))) || ''}</b></button>`).join('')}</div>`
+        : '<p>Aucune école ne correspond. Essaie un autre mot (par exemple « Lausanne » ou « informaticien »).</p>'}
+      <p class="src">Écoles et délais : DGEP, canton de Vaud (octobre 2026). Le chiffre à droite compte les places publiées sur orientation.ch dans les métiers de l’école.</p>`;
+  }
+  if(plMode==='ecole'){
+    const e = PL_EM[plEm], s = e.s, by = new Map();
+    locs.forEach(d => d.items.forEach(it => { if(!by.has(it[1])) by.set(it[1], {n:0, at:new Map()}); const o = by.get(it[1]), k = it[2]||1; o.n += k; o.at.set(d.l.name, (o.at.get(d.l.name)||0) + k); }));
+    const jobs = [...by].sort((a,b) => b[1].n - a[1].n || a[0].localeCompare(b[0],'fr'));
+    return `<button type="button" class="pl-back">← Toutes les écoles</button>
+      <div class="k">École de métiers · ${esc(s.city)}</div><h3>${esc(s.abbr)}</h3><p>${esc(s.name)} · <a href="${s.url}" target="_blank" rel="noopener">site de l’école ↗</a></p>
+      ${s.po?`<p><b>Portes ouvertes :</b> ${esc(s.po)}</p>`:''}
+      <p><b>Inscriptions :</b> ${s.ins.map(esc).join(' · ')}</p>${s.info?`<p class="pl-where">${esc(s.info)}</p>`:''}
+      <p class="pl-fam">Métiers à plein temps</p>
+      <ul class="pl-em-jobs">${s.jobs.map(j => `<li><a href="${j.url}" target="_blank" rel="noopener">${esc(j.label)}</a>${j.level?` <small>${j.level===2?'AFP':'CFC'} · ${j.level} ans</small>`:''}${j.sp?`<br><small>${esc(j.sp)}</small>`:''}</li>`).join('')}</ul>
+      <p><a href="${VDP}prestation/demander-ladmission-en-ecole-de-metiers" target="_blank" rel="noopener">Demander l’admission (vd.ch) ↗</a></p>
+      <p class="pl-fam">Places publiées dans ces métiers</p>
+      ${jobs.length ? `<p><b>${nPl(n)}</b> dans ${locs.length} localité${locs.length>1?'s':''}, à l’école ou en entreprise (voie duale). Clique sur un point pour voir les entreprises.</p>
+        ${jobs.map(([t,o]) => `<div class="pl-job"><div>${esc(t)}<span>${o.n}</span></div><p class="pl-where">${[...o.at].sort((a,b) => b[1]-a[1]).map(([l,k]) => esc(l)+(k>1?` (${k})`:'')).join(' · ')}</p></div>`).join('')}`
+        : '<p>Aucune place publiée sur orientation.ch en ce moment dans ces métiers. Pour l’école, l’inscription se fait directement auprès d’elle.</p>'}${src}`;
+  }
   if(plMode==='dom' && !plDom){
     const c = plByDom(locs.flatMap(d => d.items));
-    return `<div class="k">Canton de Vaud · par domaine</div><h3>${nPl(n)}</h3>
+    return `${emHint}<div class="k">Canton de Vaud · par domaine</div><h3>${nPl(n)}</h3>
       <p>Choisis un domaine pour voir ses places sur la carte. Chaque point prend la couleur du domaine le plus présent dans la localité.</p>
       ${FAMILIES.map(f => { const ds = f.domains.filter(d => c[d.num]); return ds.length ? `<p class="pl-fam">${esc(f.short)}</p><div class="pl-locs">${ds.map(d =>
         `<button type="button" class="pl-loc" data-dom="${d.num}"><span><i class="pl-sw" style="background:${swatch(d.hue)}"></i>${d.num}. ${esc(d.name)}</span><b>${c[d.num]}</b></button>`).join('')}</div>` : ''; }).join('')}${src}`;
@@ -2491,7 +2563,7 @@ function plSide(locs, n){
       <p><b>${nPl(n)}</b> dans ${locs.length} localité${locs.length>1?'s':''}${plQ?' (filtre actif)':''}. Clique sur un point pour voir les entreprises.</p>
       ${jobs.map(([t,o]) => `<div class="pl-job"><div>${esc(t)}<span>${o.n}</span></div><p class="pl-where">${[...o.at].sort((a,b) => b[1]-a[1]).map(([l,k]) => esc(l)+(k>1?` (${k})`:'')).join(' · ')}</p></div>`).join('')}${src}`;
   }
-  return `<div class="k">${plDom?`<i style="background:${swatch(domByNum[plDom].hue)}"></i>${esc(domByNum[plDom].num+'. '+domByNum[plDom].name)}`:'Canton de Vaud'}</div><h3>${nPl(n)}</h3>
+  return `${emHint}<div class="k">${plDom?`<i style="background:${swatch(domByNum[plDom].hue)}"></i>${esc(domByNum[plDom].num+'. '+domByNum[plDom].name)}`:'Canton de Vaud'}</div><h3>${nPl(n)}</h3>
     <p>${plQ || plDom ? 'correspondent à ton filtre, dans le canton de Vaud.' : 'publiées sur orientation.ch.'} Chaque point est un lieu de formation : plus il est grand, plus il y a de places. Clique sur un point ou une localité.</p>
     <div class="pl-locs">${locs.slice(0,25).map(d => `<button type="button" class="pl-loc" data-loc="${esc(d.l.k)}"><span>${esc(d.l.name)}</span><b>${d.n}</b></button>`).join('')}</div>
     ${locs.length>25?`<p class="src">+ ${locs.length-25} autres localités sur la carte.</p>`:''}${src}`;
