@@ -75,7 +75,7 @@ async function worker() {
         const vd = await count(page, (job.qs ? job.qs + '&' : '') + 'canton=VD');
         const list = job.id !== '*' && vd > 0 ? await cards(page) : [];
         places[job.id] = { ch, vd };
-        for (const r of list) rows.set(r.slice(0, 3).join('|'), r);     // ids can overlap: one row per listing
+        for (const r of list) { const k = r.slice(0, 3).join('|'); if (!rows.has(k)) rows.set(k, [...r, job.id]); }   // ids can overlap: one row per listing
         break;
       } catch (e) {
         if (attempt < 2) { await page.waitForTimeout(3000); continue; }
@@ -123,17 +123,18 @@ async function geocode(npa, name) {             // swisstopo public search: post
   await new Promise(r => setTimeout(r, 150));
   return hit ? [+hit.attrs.lat.toFixed(4), +hit.attrs.lon.toFixed(4)] : null;
 }
+const pids = [...new Set([...rows.values()].map(r => r[4]))], pidIx = new Map(pids.map((p, i) => [p, i]));
 const locs = new Map();
-for (const [co, title, addr, n] of rows.values()) {
+for (const [co, title, addr, n, pid] of rows.values()) {
   const m = addr.match(/(\d{4})\s+([^\d]+?)\s*$/);
   if (!m) continue;
   const k = m[2].replace(/\s+\d+$/, '');
   if (!locs.has(k)) locs.set(k, { k, name: k, npa: m[1], items: [] });
-  locs.get(k).items.push(n > 1 ? [co, title, n] : [co, title]);
+  locs.get(k).items.push([co, title, n, pidIx.get(pid)]);    // n = places in the listing, last = index in pids (→ métier → domain)
 }
 for (const l of locs.values()) { const g = await geocode(l.npa, l.name); if (g) [l.lat, l.lon] = g; }
 const list = [...locs.values()].filter(l => l.lat);
 const nPlaces = list.reduce((a, l) => a + l.items.reduce((b, it) => b + (it[2] || 1), 0), 0);
 console.log(`vd map: ${rows.size} listings, ${nPlaces} places on the map, ${locs.size} localities, ${list.length} geocoded`);
-if (rows.size > 100) writeFileSync(mapOut, JSON.stringify({ updated: new Date().toISOString(), n: nPlaces, listings: rows.size, locs: list }));
+if (rows.size > (process.env.MIN_ROWS ?? 100)) writeFileSync(mapOut, JSON.stringify({ updated: new Date().toISOString(), n: nPlaces, listings: rows.size, pids, locs: list }));
 else if (prevMap.updated) writeFileSync(mapOut, JSON.stringify(prevMap));

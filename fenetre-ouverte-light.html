@@ -375,6 +375,9 @@ aside h2{font-family:var(--display);font-size:12px;letter-spacing:.09em;text-tra
 .pl-cr:disabled{color:var(--ink);text-decoration:none;cursor:default}
 .pl-stat{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .pl-search{margin-left:auto}
+.pl-dom{font:inherit;font-size:13px;font-weight:700;max-width:300px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.pl-dom.on{border-color:var(--dc);box-shadow:inset 0 0 0 1px var(--dc)}
+.pl-side .k i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
 .pl-map{position:relative;min-height:0;overflow:hidden}
 .pl-map svg{width:100%;height:100%;display:block;touch-action:none;user-select:none}
 .pl-ch{fill:color-mix(in srgb,var(--muted) 22%,var(--bg))}
@@ -418,6 +421,7 @@ aside h2{font-family:var(--display);font-size:12px;letter-spacing:.09em;text-tra
   .pl-side{border-left:0;border-top:1px solid var(--line);overflow:visible}
   .pl-search{margin-left:0;width:100%}
   .pl-search input{width:100%}
+  .pl-dom{max-width:none;width:100%}
 }
 @media print{
   header,aside,.stage-bar,.mp-top{display:none!important}
@@ -2318,7 +2322,10 @@ const plEl = document.getElementById('pl');
 const PL_SRC = ['vd-places.json', 'https://raven-young.github.io/azimut/vd-places.json'];
 const PL_SITE = 'https://raven-young.github.io/azimut/#places-vaud';
 const plProj = d3.geoMercator().scale(GEO.scale).translate(GEO.translate);
-let plData = null, plLoading = null, plZoomed = false, plSel = null, plQ = '', plZ = null, plK = 1;
+let plData = null, plLoading = null, plZoomed = false, plSel = null, plQ = '', plZ = null, plK = 1, plDom = null;
+/* each listing carries the orientation.ch profession id it was found under (plData.pids) → its domain(s) in this explorer */
+const PL_DOM = {}; uniq.forEach(u => { const f = OC_INFO[u.occ[0].name+'|'+u.level]; if(f && f.id) PL_DOM[f.id] = [...new Set(u.occ.map(p=>p.domain.num))]; });
+const plDomsOf = it => (plData && plData.pids && it[3]!=null && PL_DOM[plData.pids[it[3]]]) || [];
 function plLoad(){
   if(!plLoading) plLoading = (async()=>{
     for(const u of PL_SRC){ try{ const r = await fetch(u, {cache:'no-cache'}); if(!r.ok) continue;
@@ -2328,7 +2335,15 @@ function plLoad(){
   return plLoading;
 }
 const plDate = iso => new Date(iso).toLocaleDateString('fr-CH',{day:'numeric',month:'long',year:'numeric'});
-const plItems = l => plQ ? l.items.filter(([c,t])=>norm(t+' '+c).includes(plQ)) : l.items;
+const plItems = l => l.items.filter(it => (!plQ || norm(it[1]+' '+it[0]).includes(plQ)) && (!plDom || plDomsOf(it).includes(plDom)));
+function plDomOptions(){
+  const sel = document.getElementById('pl-dom'); if(!sel || sel.dataset.ok || !plData || !plData.pids) return;
+  const c = {}; plData.locs.forEach(l => l.items.forEach(it => plDomsOf(it).forEach(d => c[d] = (c[d]||0) + (it[2]||1))));
+  sel.innerHTML = '<option value="">Tous les domaines</option>' + FAMILIES.map(f => `<optgroup label="${esc(f.short)}">${f.domains.map(d =>
+    `<option value="${d.num}"${c[d.num]?'':' disabled'}>${d.num}. ${esc(d.name)} · ${c[d.num]||0}</option>`).join('')}</optgroup>`).join('');
+  sel.dataset.ok = 1;
+  sel.onchange = () => { plDom = +sel.value || null; plSel = null; plUpdate(); };
+}
 const plN = items => items.reduce((a,it)=>a+(it[2]||1), 0);   // a listing can offer several places
 const plLocs = () => !plData ? [] : plData.locs.map(l=>{ const items=plItems(l); return {l, items, n:plN(items)}; }).filter(d=>d.n).sort((a,b)=>b.n-a.n);
 const plR = n => (2.2 + 0.95*Math.sqrt(n)) / plK;
@@ -2356,6 +2371,7 @@ function renderPl(){
       <div class="search pl-search" id="pl-sw" hidden><label for="pl-q" class="sr">Filtrer les places</label>
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 11l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="pl-q" type="search" placeholder="Filtrer : métier ou entreprise…" autocomplete="off"></div>
+      <select id="pl-dom" class="pl-dom" hidden aria-label="Filtrer par domaine professionnel"></select>
     </div>
     <div class="pl-map"><svg id="pl-svg" viewBox="0 0 ${GEO.w} ${GEO.h}" role="img" aria-label="Carte de la Suisse : le canton de Vaud est cliquable"><g id="pl-g">
       <path class="pl-ch" d="${GEO.ch}"/><path class="pl-cantons" d="${GEO.cantons}"/>
@@ -2416,10 +2432,13 @@ function plUpdate(){
   document.getElementById('pl-cr-ch').disabled = !plZoomed;
   document.getElementById('pl-cr-vd').hidden = !plZoomed;
   document.getElementById('pl-sw').hidden = !plZoomed || !plData;
+  plDomOptions();
+  const ds = document.getElementById('pl-dom'), dc = plDom ? swatch(domByNum[plDom].hue) : null;
+  ds.hidden = !plZoomed || !plData || !plData.pids; ds.classList.toggle('on', !!plDom); ds.style.setProperty('--dc', dc || 'var(--line)');
   document.getElementById('pl-tools').hidden = !plZoomed;
   document.getElementById('pl-call2').textContent = plData ? `${nPl(plData.n)} · clique pour voir` : 'clique pour voir les places';
   document.getElementById('pl-stat').textContent = !plData ? '' : plZoomed
-    ? `${nPl(n)} dans ${locs.length} localité${locs.length>1?'s':''}${plQ?' (filtre actif)':''} · orientation.ch, ${plDate(plData.updated)}`
+    ? `${nPl(n)} dans ${locs.length} localité${locs.length>1?'s':''}${plDom?' · '+domByNum[plDom].name:''}${plQ?' (filtre actif)':''} · orientation.ch, ${plDate(plData.updated)}`
     : `Mise à jour quotidienne · ${plDate(plData.updated)}`;
   const dots = d3.select('#pl-dots').selectAll('circle').data(plZoomed ? locs : [], d => d.l.k);
   dots.exit().remove();
@@ -2429,7 +2448,7 @@ function plUpdate(){
       .call(c => c.append('title'))
     .merge(dots)
       .attr('cx', d => d.l.x).attr('cy', d => d.l.y).attr('r', d => plR(d.n))
-      .classed('on', d => d.l.k === plSel)
+      .classed('on', d => d.l.k === plSel).style('fill', dc)
       .attr('aria-label', d => `${d.l.name} : ${nPl(d.n)}`)
       .call(c => c.select('title').text(d => `${d.l.name} · ${nPl(d.n)}`));
   d3.select('#pl-dots').selectAll('circle').sort((a,b) => b.n - a.n);
@@ -2459,8 +2478,8 @@ function plSide(locs, n){
       ${jobs.map(([t,cs,k]) => `<div class="pl-job"><div>${esc(t)}<span>${k}</span></div><ul>${cs.map(([c,m])=>`<li>${esc(c)}${m>1?` · ${m} places`:''}</li>`).join('')}</ul></div>`).join('')}
       ${src}`;
   }
-  return `<div class="k">Canton de Vaud</div><h3>${nPl(n)}</h3>
-    <p>${plQ ? 'correspondent à ton filtre.' : 'publiées sur orientation.ch.'} Chaque point est un lieu de formation : plus il est grand, plus il y a de places. Clique sur un point ou une localité.</p>
+  return `<div class="k">${plDom?`<i style="background:${swatch(domByNum[plDom].hue)}"></i>${esc(domByNum[plDom].num+'. '+domByNum[plDom].name)}`:'Canton de Vaud'}</div><h3>${nPl(n)}</h3>
+    <p>${plQ || plDom ? 'correspondent à ton filtre, dans le canton de Vaud.' : 'publiées sur orientation.ch.'} Chaque point est un lieu de formation : plus il est grand, plus il y a de places. Clique sur un point ou une localité.</p>
     <div class="pl-locs">${locs.slice(0,25).map(d => `<button type="button" class="pl-loc" data-loc="${esc(d.l.k)}"><span>${esc(d.l.name)}</span><b>${d.n}</b></button>`).join('')}</div>
     ${locs.length>25?`<p class="src">+ ${locs.length-25} autres localités sur la carte.</p>`:''}${src}`;
 }
