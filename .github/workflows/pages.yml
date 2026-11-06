@@ -6,7 +6,7 @@ on:
     - cron: '30 4 * * *'   # every day ~05:30/06:30 Swiss time: refresh apprenticeship-place counts
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write   # the daily refresh saves its data to the places-data branch
   pages: write
   id-token: write
 concurrency:
@@ -21,10 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./build.sh
-      # yesterday's counts: fallback for failed ids, and what a plain push redeploys
+      # last refresh (places-data branch): fallback for failed ids, and what a plain push redeploys.
+      # Read from git, not from the website, whose CDN copy can lag a few minutes behind a deploy.
       - run: |
-          curl -sfL https://raven-young.github.io/azimut/places.json -o prev.json || true
-          curl -sfL https://raven-young.github.io/azimut/vd-places.json -o prev-vd.json || true
+          if git fetch -q --depth=1 origin places-data; then
+            git show FETCH_HEAD:places.json > prev.json; git show FETCH_HEAD:vd-places.json > prev-vd.json
+          else
+            curl -sfL https://raven-young.github.io/azimut/places.json -o prev.json || true
+            curl -sfL https://raven-young.github.io/azimut/vd-places.json -o prev-vd.json || true
+          fi
       - if: github.event_name == 'push'
         run: |
           [ -s prev.json ] && cp prev.json _site/places.json || true
@@ -44,6 +49,14 @@ jobs:
         run: |
           [ -s _site/places.json ] || { [ -s prev.json ] && cp prev.json _site/places.json; } || true
           [ -s _site/vd-places.json ] || { [ -s prev-vd.json ] && cp prev-vd.json _site/vd-places.json; } || true
+      - if: github.event_name != 'push'
+        name: Save the data to the places-data branch (one commit, replaced each day)
+        run: |
+          [ -s _site/places.json ] && [ -s _site/vd-places.json ] || exit 0
+          d=$(mktemp -d); cp _site/places.json _site/vd-places.json "$d"; cd "$d"
+          git init -q -b places-data && git add .
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit -qm "Places data $(date -u +%F)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" places-data
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
