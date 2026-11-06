@@ -85,6 +85,9 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(20px,2.6vw,28px);l
 .bt-pathc{fill:#fff;stroke:none;font-size:11.5px;opacity:.92}
 .bt-meta{font-weight:700}
 .bt-link{font-weight:800;fill:var(--accent);stroke:none}
+.bt-afp{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:800;font-size:30px;letter-spacing:.04em;fill:var(--accent);stroke:none}
+.bt-root1.bt-afp{font-size:34px}
+.bt-afps{fill:var(--muted);stroke:none;font-size:10.5px;font-weight:700}
 .n.path:hover .zoomable{transform:scale(1.12)}
 .n.tcentre:hover .zoomable{transform:scale(1.06)}
 .n.kid.link:hover .zoomable,.n.kid.go:hover .zoomable,.n.kid.group:hover .zoomable,.n.kid.info:hover .zoomable,.n.kid.opt:hover .zoomable{transform:scale(1.5)}
@@ -878,10 +881,17 @@ allProfs.forEach(p => { let u=profMap.get(p.key);
   p.specs.forEach(s=>u.specs.add(s)); u.occ.push(p); });
 const uniq = [...profMap.values()];
 const cnt = l => uniq.filter(u=>u.level===l).length;
+/* AFP view (opened from the « AFP » bubble of Apprentissage): the métiers map keeps only the AFP professions */
+const inView = p => !state.afp || p.level===2;
+const vProfs = d => profsOf(d).filter(inView);
+const visDoms = f => f.domains.filter(d=>vProfs(d).length);
+const visFams = () => FAMILIES.filter(f=>visDoms(f).length);
+const stepDom = (num, dir) => { const ds = domains.filter(d=>vProfs(d).length), i = ds.findIndex(d=>d.num===num);
+  return ds[(i+dir+ds.length)%ds.length].num; };
 [2,3,4].forEach(l=>{ document.getElementById('n'+l).textContent = cnt(l); });
 
 /* ---------- State ---------- */
-const state = {view:'map', q:'', levels:new Set([2,3,4]), focus:null, sel:null, dom:null, fam:null};
+const state = {view:'map', q:'', levels:new Set([2,3,4]), focus:null, sel:null, dom:null, fam:null, afp:false};
 function computeLit(){
   if(!state.q && state.levels.size===3 && !state.focus) return null;
   const lit = new Set();
@@ -889,7 +899,7 @@ function computeLit(){
     if(state.focus && d.num!==state.focus) return;
     if(state.focus) { lit.add(d.id); lit.add(d.fam.id); }
     d.children.forEach(c => (c.type==='sub'?c.children:[c]).forEach(p => {
-      if(!state.levels.has(p.level)) return;
+      if(!state.levels.has(p.level) || !inView(p)) return;
       if(state.q && !p.search.includes(state.q)) return;
       lit.add(p.uid); lit.add(p.key); lit.add(d.id); lit.add(d.fam.id); if(c.type==='sub') lit.add(c.id);
     }));
@@ -920,7 +930,7 @@ function tipFor(kind, ref){
     return `<b>${u.name}</b><div class="meta">${LEVEL[u.level]} · ${u.occ.map(pathLine).join('<br>')}</div>`+
       (infoOf(u).d?`<div class="desc">${infoOf(u).d}</div>`:'')+
       (sp.length?`<ul>${sp.slice(0,8).map(s=>`<li>${s}</li>`).join('')}${sp.length>8?`<li>+ ${sp.length-8} autres</li>`:''}</ul>`:''); }
-  if(kind==='domain') return `<b>${ref.num} · ${ref.name}</b><div class="meta">${profsOf(ref).length} professions · intérêt ${ref.fam.n} : ${ref.fam.short}</div>`;
+  if(kind==='domain') return `<b>${ref.num} · ${ref.name}</b><div class="meta">${vProfs(ref).length} professions${state.afp?' AFP':''} · intérêt ${ref.fam.n} : ${ref.fam.short}</div>`;
   if(kind==='sub') return `<b>${ref.name}</b><div class="meta">${ref.domain.num} ${ref.domain.name} · ${ref.children.length} professions</div>`;
   if(kind==='spec') return `<b>${ref.name}</b><div class="meta">${ref.prof.name===('Employé de commerce')||ref.prof.name==='Gestionnaire du commerce de détail'?'Branche':'Orientation'} de ${ref.prof.name} · ${LEVEL[ref.prof.level]}</div>`;
   if(kind==='fam') return `<b>Intérêt ${ref.n} · ${ref.full}</b><ul>${ref.domains.map(d=>`<li>${d.num} ${d.name}</li>`).join('')}</ul>`;
@@ -969,19 +979,23 @@ function namePill(g, n, text, hue, cls, maxLines, width){
   if(cls) lab.classed(cls, true);   // add after measuring: a display:none label measures as 0
 }
 const NODE = {};
-const ROOT_N = NODE.root = {data:{id:'root',type:'root'}, x:0, y:0, r:BUB.root, parent:null, kids:[]};
-(function placeBubbles(){
+let ROOT_N;
+// lays out the interests and domains still visible (all of them, or only those with AFP professions)
+function placeBubbles(){
+  Object.keys(NODE).forEach(k=>delete NODE[k]);
+  ROOT_N = NODE.root = {data:{id:state.afp?'root-afp':'root',type:'root'}, x:0, y:0, r:BUB.root, parent:null, kids:[]};
   // each interest gets an angular sector sized by its number of domains, so domains never collide
-  const W = d3.sum(FAMILIES, f=>Math.max(1.6, f.d.length));
-  let start = -Math.PI/2 - Math.max(1.6, FAMILIES[0].d.length)/W*Math.PI;
-  FAMILIES.forEach(f=>{ f.type='fam';
-    const sec = Math.max(1.6, f.d.length)/W*2*Math.PI, a = start+sec/2;
+  const fams = visFams(), W = d3.sum(fams, f=>Math.max(1.6, visDoms(f).length));
+  let start = -Math.PI/2 - Math.max(1.6, visDoms(fams[0]).length)/W*Math.PI;
+  fams.forEach(f=>{ f.type='fam'; const ds = visDoms(f);
+    const sec = Math.max(1.6, ds.length)/W*2*Math.PI, a = start+sec/2;
     const fn = NODE[f.id] = {data:f, x:R_FAM*Math.cos(a), y:R_FAM*Math.sin(a), r:BUB.fam, parent:ROOT_N, kids:[]}; ROOT_N.kids.push(fn);
-    f.domains.forEach((d,j)=>{ const ad = start + (j+0.5)*sec/f.d.length;
+    ds.forEach((d,j)=>{ const ad = start + (j+0.5)*sec/ds.length;
       fn.kids.push(NODE[d.id] = {data:d, x:R_DOM*Math.cos(ad), y:R_DOM*Math.sin(ad), r:BUB.domain, parent:fn, kids:[]}); });
     start += sec;
   });
-})();
+}
+placeBubbles();
 const expanded = new Set();
 
 function wrapText(g, str, r, fs, cls, maxLines, dy=0){
@@ -1010,6 +1024,13 @@ function drawBubble(g, n){
     g.append('circle').attr('r',n.r+9).style('fill','none').style('stroke','var(--accent)').attr('stroke-opacity',.35).attr('stroke-width',1.5);
     g.append('circle').attr('r',n.r).style('fill','var(--surface)').style('stroke','var(--accent)').attr('stroke-width',4);
     const tx=g.append('text').attr('text-anchor','middle');
+    if(state.afp){
+      g.append('circle').attr('r',n.r-10).style('fill','none').style('stroke','var(--accent)').attr('stroke-width',1.5).attr('stroke-dasharray','4 5');
+      [['MÉTIERS','bt-root1',-30],['AFP','bt-root1 bt-afp',4],
+       [`attestation fédérale · 2 ans`,'bt-root3',34],[`${cnt(2)} métiers · ${visFams().length} intérêts`,'bt-root3',52]]
+        .forEach(([s,c,y])=>tx.append('tspan').attr('class',c).attr('x',0).attr('y',y).text(s));
+      return;
+    }
     [['CHOIX','bt-root1',-24],['PROFESSIONNEL','bt-root1',6],
      [`9 intérêts · ${domains.length} domaines · ${uniq.length} métiers`,'bt-root3',40],['Clique sur une bulle','bt-root3',58]]
       .forEach(([s,c,y])=>tx.append('tspan').attr('class',c).attr('x',0).attr('y',y).text(s));
@@ -1033,7 +1054,7 @@ const fromParent = n => n.parent ? `translate(${n.parent.x},${n.parent.y}) scale
 function clearOpacity(){ this.style.opacity=''; }
 function renderMap(){
   // focus mode: only the clicked interest and its domains stay on the page
-  const fN = state.fam ? [NODE['f'+state.fam]] : FAMILIES.map(f=>NODE[f.id]);
+  const fN = state.fam ? [NODE['f'+state.fam]] : visFams().map(f=>NODE[f.id]);
   const dN = fN.filter(n=>expanded.has(n.data.n)).flatMap(n=>n.kids);
   const nodes = state.fam ? [...fN, ...dN] : [ROOT_N, ...fN, ...dN];
   const links = [...(state.fam?[]:fN), ...dN].map(n=>({source:n.parent, target:n, id:idOf(n.data)}));
@@ -1066,7 +1087,7 @@ function renderMap(){
       if(t==='fam'){ if(state.fam===n.data.n) unfocusFam(); else focusFam(n.data.n); }
       else if(t==='domain') openDomain(n.data.num);
       else if(t==='root'){ toggleAll(); } });
-  document.getElementById('fold').textContent = expanded.size===FAMILIES.length ? 'Tout replier' : 'Tout déplier';
+  document.getElementById('fold').textContent = visFams().every(f=>expanded.has(f.n)) ? 'Tout replier' : 'Tout déplier';
   applyHighlight();
 }
 function focusFam(num){
@@ -1076,7 +1097,7 @@ function unfocusFam(){
   if(!state.fam) return;
   state.fam = null; renderMap(); setUI(); fit();
 }
-function toggleAll(){ if(expanded.size===FAMILIES.length) expanded.clear(); else FAMILIES.forEach(f=>expanded.add(f.n)); renderMap(); }
+function toggleAll(){ if(visFams().every(f=>expanded.has(f.n))) expanded.clear(); else visFams().forEach(f=>expanded.add(f.n)); renderMap(); }
 
 /* ---------- Level 0: the three paths after compulsory school ----------
    Apprentissage: orientation.ch · ECG: canton de Vaud, vd.ch/formation/orientation/ecole-de-culture-generale-ecg ·
@@ -1122,6 +1143,7 @@ const emLeaf = s => ({...L(`${s.abbr} · ${s.city.split(' · ')[0]} ↗`, s.url)
 const PATHS = [
   {id:'p-app', key:'app', title:'Apprentissage', sub:'dual en entreprise ou en école à plein temps', meta:'AFP 2 ans · CFC 3–4 ans', h:213, ang:-90, kids:[
     GO('Apprentissage dual · explorer les métiers →', 'app'),
+    {t:'go', go:'afp', afp:true, label:'AFP', tip:'Attestation fédérale de formation professionnelle (AFP) — 2 ans, plus pratique · clique pour voir les métiers qui ont une AFP'},
     {t:'group', label:'Plein temps en école de métiers', count:'7 écoles', kids:[
       ...EM.slice(0,4).map(emLeaf), GO('Voir les CFC par école →', 'em'), ...EM.slice(4,7).map(emLeaf),
       L('Demander l’admission (vd.ch) ↗', VDP+'prestation/demander-ladmission-en-ecole-de-metiers')]},
@@ -1177,7 +1199,7 @@ function layoutPath(pp){ const a=pp.ang*Math.PI/180; Object.assign(pp,{type:'pat
   const ks = pp.kids||[];
   // options sit at equal angles all round their sun, starting on the path's outward direction
   ks.forEach((k,i)=>{ const ak = a + i*2*Math.PI/ks.length;
-    Object.assign(k,{id:pp.id+'-'+i, type:'kid', parent:pp, x:pp.x+TOP.KR*Math.cos(ak), y:pp.y+TOP.KR*Math.sin(ak), r:k.img?TOP.kidImg:TOP.kid, ang:ak});
+    Object.assign(k,{id:pp.id+'-'+i, type:'kid', parent:pp, x:pp.x+TOP.KR*Math.cos(ak), y:pp.y+TOP.KR*Math.sin(ak), r:k.img||k.afp?TOP.kidImg:TOP.kid, ang:ak});
     // a group's leaves orbit the group at equal angles; one slot is left free on the side facing the path sun
     (k.kids||[]).forEach((l,j,arr)=>{ const r = l.t==='gate' ? TOP.gate : TOP.leaf, slots = arr.length+1, al = ak + Math.PI + (j+1)*2*Math.PI/slots,
         lr = Math.max(TOP.LR*0.8, (r+8)/Math.sin(Math.PI/slots));
@@ -1353,6 +1375,18 @@ function drawTop(g, n){
     if(n.open) pastille(h, n, url ? '↗' : '→');
     return;
   }
+  if(n.afp){
+    // AFP: its own look — the hollow ring of the AFP legend, in the accent colour
+    z.append('title').text(n.tip);
+    z.append('circle').attr('class','halo').attr('r',n.r+6).style('fill','none').style('stroke','var(--accent)').attr('stroke-opacity',.45).attr('stroke-width',2);
+    z.append('circle').attr('class','dot').attr('r',n.r).style('fill','var(--surface)').style('stroke','var(--accent)').attr('stroke-width',5);
+    z.append('circle').attr('r',n.r-11).style('fill','none').style('stroke','var(--accent)').attr('stroke-width',1.5).attr('stroke-dasharray','4 5');
+    const tx = z.append('text').attr('text-anchor','middle');
+    [['AFP','bt-afp',-6],['attestation fédérale','bt-afps',18],[`2 ans · ${cnt(2)} métiers`,'bt-afps',32]]
+      .forEach(([s,c,y])=>tx.append('tspan').attr('class',c).attr('x',0).attr('y',y).text(s));
+    pastille(z, n, '→');
+    return;
+  }
   let host = z;
   if(n.t==='link') host = z.append('a').attr('href', n.url).attr('target','_blank').attr('rel','noopener');
   if(n.tip) host.append('title').text(n.tip);
@@ -1419,7 +1453,7 @@ function renderTop(){
    .on('click', (ev,n)=>{ ev.stopPropagation();
       if(n.type==='tcentre'){ openQuiz(); }
       else if(n.type==='path'){ if(state.path===n && n.back){ topBack(); return; } state.path = state.path===n ? null : n; state.group=null; renderTop(); setUI(); fit(); }
-      else if(n.t==='go'){ if(n.go==='app') goApp(); else if(n.go==='em') openEM(); else if(n.go==='sco') openSco(); else if(n.go==='quiz') openQuiz(); }
+      else if(n.t==='go'){ if(n.go==='app') goApp(); else if(n.go==='afp') goApp(true); else if(n.go==='em') openEM(); else if(n.go==='sco') openSco(); else if(n.go==='quiz') openQuiz(); }
       else if(n.t==='gate'){ if(n.open && !/^https?:/.test(n.go)) openPathKey(n.go); }
       else if(n.t==='group'){ state.group = state.group===n ? null : n; renderTop(); fit(); } });
   renderOutline();
@@ -1430,11 +1464,12 @@ function openSco(grp=null){ openPathKey('sco', grp); }
 function showLayer(top){
   topG.attr('display', top?null:'none'); mapG.attr('display', top?'none':null);
 }
-function goApp(){
+function goApp(afp=false){
   document.getElementById('quiz').hidden = true;
+  if(state.afp!==afp){ state.afp = afp; state.fam = null; placeBubbles(); if(afp) visFams().forEach(f=>expanded.add(f.n)); }
   state.top = false; state.path = null; state.group = null; showLayer(false);
   renderMap(); setUI(); fit();
-  try{ history.replaceState(null,'','#apprentissage'); }catch(e){}
+  try{ history.replaceState(null,'', afp ? '#afp' : '#apprentissage'); }catch(e){}
 }
 function goTop(){
   state.top = true; state.fam = null; showLayer(true);
@@ -1454,19 +1489,21 @@ function jobCard(p){
     <span class="go">Lire la description</span></a>`;
 }
 function renderTreemap(D, animate){
-  const jobs = profsOf(D), lv = l => jobs.filter(p=>p.level===l).length;
-  const kids = D.children.map((c,i)=>`<div class="ot-kid" style="animation-delay:${80+i*60}ms">`+
+  const jobs = vProfs(D), lv = l => jobs.filter(p=>p.level===l).length;
+  const kids = D.children.map(c=>c.type==='sub' ? {...c, children:c.children.filter(inView)} : c)
+    .filter(c=>c.type==='sub' ? c.children.length : inView(c))
+    .map((c,i)=>`<div class="ot-kid" style="animation-delay:${80+i*60}ms">`+
     (c.type==='sub'
       ? `<div class="ot-sub">${c.name}<span>${c.children.length} profession${c.children.length>1?'s':''}</span></div><div class="ot-jobs">${c.children.map(jobCard).join('')}</div>`
       : jobCard(c)) + `</div>`).join('');
   tm.style.setProperty('--h', D.hue);
   tm.innerHTML = `<div class="tm-head" style="--h:${D.hue}">
-      <span>Intérêt ${D.fam.n} · ${D.fam.short}</span><span>${jobs.length} professions</span>
+      <span>Intérêt ${D.fam.n} · ${D.fam.short}</span><span>${jobs.length} professions${state.afp?' AFP':''}</span>
       <span class="tm-key"><i style="--mix:${MIX[2]}"></i>AFP 2 ans (${lv(2)})</span>
-      <span class="tm-key"><i style="--mix:${MIX[3]}"></i>CFC 3 ans (${lv(3)})</span>
-      <span class="tm-key"><i style="--mix:${MIX[4]}"></i>CFC 4 ans (${lv(4)})</span>
+      ${state.afp ? '<span>Seuls les métiers avec une AFP sont affichés</span>' : `<span class="tm-key"><i style="--mix:${MIX[3]}"></i>CFC 3 ans (${lv(3)})</span>
+      <span class="tm-key"><i style="--mix:${MIX[4]}"></i>CFC 4 ans (${lv(4)})</span>`}
     </div>
-    <div class="ot${animate?' anim':''}"><div class="ot-root"><img src="${domImg(D)}" alt="${D.name} : illustration du domaine" width="248" height="248"><small>Domaine ${D.num} · ${jobs.length} professions</small></div><div class="ot-kids">${kids}</div></div>`;
+    <div class="ot${animate?' anim':''}"><div class="ot-root"><img src="${domImg(D)}" alt="${D.name} : illustration du domaine" width="248" height="248"><small>Domaine ${D.num} · ${jobs.length} professions${state.afp?' AFP':''}</small></div><div class="ot-kids">${kids}</div></div>`;
   tm.querySelectorAll('.tm-job').forEach(el=>{ const p = allProfs.find(x=>x.uid===el.dataset.uid);
     el.addEventListener('mouseenter', ev=>showTip(ev, tipFor('prof', p)));
     el.addEventListener('mousemove', moveTip);
@@ -1532,8 +1569,8 @@ function setTitle(){
         : 'Choisis les modules utiles pour ton entretien d’orientation'; }
   else if(state.em){ k = 'Parcours de formation · Apprentissage';
     t = 'Écoles de métiers'; sub = `${EM.length} écoles · apprentissage à plein temps · portes ouvertes et inscriptions`; }
-  else if(state.dom){ const D = domByNum[state.dom], ps = profsOf(D);
-    k = `Métiers · Intérêt ${D.fam.n} · Domaine ${D.num}`;
+  else if(state.dom){ const D = domByNum[state.dom], ps = vProfs(D);
+    k = `${state.afp?'Métiers AFP':'Métiers'} · Intérêt ${D.fam.n} · Domaine ${D.num}`;
     t = D.name; sub = `${nProfs(ps)} professions · ${lvlMix(ps)}`; }
   else if(state.top && state.path){ const P = state.path, B = P.back && PATHS.find(p=>p.key===P.back);
     k = 'Parcours de formation · ' + (B ? B.title : P.key==='sco' ? 'Secondaire I' : 'Secondaire II');
@@ -1541,9 +1578,11 @@ function setTitle(){
     sub = state.group ? [P.title, state.group.count].filter(Boolean).join(' · ') : [P.sub, P.meta].filter(Boolean).join(' · '); }
   else if(state.top){ k = 'Parcours de formation · Système suisse';
     t = 'Après l’école obligatoire'; sub = "Clique sur « École obligatoire » au centre pour trouver ta voie · ou explore les voies du secondaire II"; }
-  else if(state.fam){ const F = FAMILIES.find(f=>f.n===state.fam), ps = F.domains.flatMap(profsOf);
-    k = `Métiers · Intérêt ${F.n} sur ${FAMILIES.length}`;
-    t = F.short; sub = `${F.domains.length} domaine${F.domains.length>1?'s':''} · ${nProfs(ps)} professions`; }
+  else if(state.fam){ const F = FAMILIES.find(f=>f.n===state.fam), ds = visDoms(F), ps = ds.flatMap(vProfs);
+    k = state.afp ? `Métiers AFP · Intérêt ${F.n}` : `Métiers · Intérêt ${F.n} sur ${FAMILIES.length}`;
+    t = F.short; sub = `${ds.length} domaine${ds.length>1?'s':''} · ${nProfs(ps)} professions${state.afp?' AFP':''}`; }
+  else if(state.afp){ k = 'Apprentissage · attestation fédérale';
+    t = 'Métiers AFP'; sub = `${cnt(2)} professions en 2 ans · ${visFams().length} intérêts · ${domains.filter(d=>vProfs(d).length).length} domaines`; }
   else { k = 'Métiers · par centre d’intérêt';
     t = 'Explorer les métiers'; sub = `${FAMILIES.length} intérêts · ${domains.length} domaines · ${uniq.length} professions · ${lvlMix(allProfs)}`; }
   document.getElementById('pkicker').textContent = k;
@@ -1560,6 +1599,8 @@ function setUI(){
   document.getElementById('fold').hidden = open || top || !!state.fam;
   document.getElementById('allfam').hidden = open || top || !state.fam;
   document.getElementById('totop').hidden = open || top;
+  document.getElementById('totop').textContent = state.afp ? '← Apprentissage' : '← Choix après l’école obligatoire';
+  document.querySelector('.flt').style.display = state.afp && !top ? 'none' : '';
   document.getElementById('paths').hidden = !top || !state.path;
   document.getElementById('v-sys').setAttribute('aria-pressed', String(!!state.top && !state.cons));
   document.getElementById('v-app').setAttribute('aria-pressed', String(!state.top && !state.cons));
@@ -1571,6 +1612,7 @@ function setUI(){
     : top && state.path===SCO ? 'Clique sur ta voie pour voir les formations qui te sont ouvertes · Échap pour revenir'
     : top && !state.path ? 'Clique sur « École obligatoire » pour trouver ta voie · ou sur une voie pour voir ses options'
     : top ? 'Clique sur une voie pour voir ses options · Échap pour revenir'
+    : state.afp ? 'Métiers AFP seulement · clic sur un domaine pour voir ses métiers · « Métiers » pour tout voir'
     : 'Clic sur un intérêt pour voir ses domaines · clic sur un domaine pour voir ses métiers';
   renderOutline();
 }
@@ -1708,9 +1750,9 @@ function navTop(pp=null, grp=null){
   state.path=pp; state.group=grp;
   if(!state.top) goTop(); else { renderTop(); setUI(); fit(); }
 }
-function navApp(fam=null){
+function navApp(fam=null, afp=state.afp){
   leaveEM(); if(state.dom) closeDomain();
-  if(state.top) goApp();
+  if(state.top || state.afp!==afp) goApp(afp);
   if(fam){ if(state.fam!==fam) focusFam(fam); else setUI(); } else if(state.fam) unfocusFam(); else setUI();
 }
 function renderOutline(){
@@ -1738,7 +1780,8 @@ function renderOutline(){
     crumbs.push([P.title]);
     const kidItem = (k, i) => {
       if(k.t==='link') return olItem({label:k.label, num:i, url:k.url, meta:k.tip?k.tip.split('\n')[0].split(' — ')[1]:null});
-      if(k.t==='go') return olItem({label:k.label, num:i, fn:()=>{ if(k.go==='app') navApp(); else if(k.go==='sco') openSco(); else if(k.go==='quiz') openQuiz(); else openEM(); }});
+      if(k.t==='go') return olItem({label:k.afp?'Métiers AFP →':k.label, num:i, meta:k.afp?`attestation fédérale · 2 ans · ${cnt(2)} métiers`:null,
+        fn:()=>{ if(k.go==='app') navApp(); else if(k.go==='afp') navApp(null, true); else if(k.go==='sco') openSco(); else if(k.go==='quiz') openQuiz(); else openEM(); }});
       if(k.t==='gate') return !k.open ? olItem({label:'🔒 '+k.label, meta:k.cond, dim:true})
         : /^https?:/.test(k.go) ? olItem({label:k.label+' ↗', meta:k.cond, url:k.go})
         : olItem({label:k.label+' →', meta:k.cond, fn:()=>openPathKey(k.go)});
@@ -1751,25 +1794,29 @@ function renderOutline(){
       + olStep(null, P.h, 'Autres voies', '', PATHS.filter(pp=>pp!==P).map(pp=>olItem({label:pp.title, meta:pp.meta, hue:pp.h, fn:()=>navTop(pp)})).join(''));
   } else if(state.dom){
     const D = domByNum[state.dom], lit = computeLit();
-    crumbs.push(['Métiers', ()=>navApp()], [`Intérêt ${D.fam.n}`, ()=>navApp(D.fam.n)], [`${D.num} ${D.name}`]);
+    if(state.afp) crumbs.push(['Apprentissage', ()=>navTop(PATHS[0])]);
+    crumbs.push([state.afp?'Métiers AFP':'Métiers', ()=>navApp()], [`Intérêt ${D.fam.n}`, ()=>navApp(D.fam.n)], [`${D.num} ${D.name}`]);
     const prof = p => olItem({label:p.name, meta:LEVEL[p.level]+(p.specs.length?` · ${p.specs.length} ${isBranch(p)?'branches':'orientations'}`:''),
       pressed:state.sel===p.key, dim:!!lit && !lit.has(p.uid), fn:()=>{ select(p.key,true); document.getElementById('detail-wrap').scrollIntoView({block:'start', behavior:DUR?'smooth':'auto'}); }});
     const blocks = []; let loose = [];
     const flush = () => { if(loose.length){ blocks.push(olStep(null, D.hue, 'Professions', '', loose.map(prof).join(''))); loose = []; } };
-    D.children.forEach(c => { if(c.type==='sub'){ flush(); blocks.push(olStep(null, D.hue, c.name, `<span>${c.children.length} profession${c.children.length>1?'s':''}</span>`, c.children.map(prof).join(''))); } else loose.push(c); });
+    D.children.forEach(c => { if(c.type==='sub'){ const ch = c.children.filter(inView); if(!ch.length) return; flush(); blocks.push(olStep(null, D.hue, c.name, `<span>${ch.length} profession${ch.length>1?'s':''}</span>`, ch.map(prof).join(''))); } else if(inView(c)) loose.push(c); });
     flush();
-    const prev = domByNum[(D.num+20)%22+1], next = domByNum[D.num%22+1];
-    html = olStep(D.num, D.hue, D.name, `<span>Intérêt ${D.fam.n} · ${profsOf(D).length} professions</span>`, '')
+    const prev = domByNum[stepDom(D.num,-1)], next = domByNum[stepDom(D.num,1)];
+    html = olStep(D.num, D.hue, D.name, `<span>Intérêt ${D.fam.n} · ${vProfs(D).length} professions${state.afp?' AFP':''}</span>`, '')
       + blocks.join('')
       + olStep(null, D.hue, 'Continuer', '', olItem({label:`Domaine suivant : ${next.name}`, num:next.num, hue:next.hue, fn:()=>openDomain(next.num)})
         + olItem({label:`Domaine précédent : ${prev.name}`, num:prev.num, hue:prev.hue, fn:()=>openDomain(prev.num)}));
   } else {
-    crumbs.push(state.fam ? ['Métiers', ()=>navApp()] : ['Métiers']);
+    if(state.afp) crumbs.push(['Apprentissage', ()=>navTop(PATHS[0])]);
+    const mt = state.afp ? 'Métiers AFP' : 'Métiers';
+    crumbs.push(state.fam ? [mt, ()=>navApp()] : [mt]);
     if(state.fam) crumbs.push([`Intérêt ${state.fam}`]);
-    const fams = state.fam ? FAMILIES.filter(f=>f.n===state.fam) : FAMILIES;
-    html = fams.map(f=>olStep(f.n, f.h, f.full, '', f.domains.map(d=>olItem({label:d.name, num:d.num, hue:d.hue, cnt:profsOf(d).length, fn:()=>openDomain(d.num)})).join(''),
+    const fams = state.fam ? FAMILIES.filter(f=>f.n===state.fam) : visFams();
+    html = fams.map(f=>olStep(f.n, f.h, f.full, '', visDoms(f).map(d=>olItem({label:d.name, num:d.num, hue:d.hue, cnt:vProfs(d).length, fn:()=>openDomain(d.num)})).join(''),
         state.fam ? null : ()=>navApp(f.n))).join('')
-      + (state.fam ? olStep(null, null, 'Autres intérêts', '', FAMILIES.filter(f=>f.n!==state.fam).map(f=>olItem({label:f.full, num:f.n, hue:f.h, fn:()=>navApp(f.n)})).join('')) : '');
+      + (state.afp && !state.fam ? olStep(null, null, 'Voir aussi', '', olItem({label:'Tous les métiers (AFP et CFC)', fn:()=>navApp(null, false)})) : '')
+      + (state.fam ? olStep(null, null, 'Autres intérêts', '', visFams().filter(f=>f.n!==state.fam).map(f=>olItem({label:f.full, num:f.n, hue:f.h, fn:()=>navApp(f.n)})).join('')) : '');
   }
   crumbBox.innerHTML = crumbs.map(([t,fn],i)=> (i?'<span aria-hidden="true">›</span>':'') +
     (fn ? `<button type="button" data-a="${act(fn)}">${t}</button>` : `<span aria-current="page">${t}</span>`)).join('');
@@ -1784,10 +1831,10 @@ document.getElementById('fit').onclick=()=>fit();
 document.getElementById('fold').onclick=()=>toggleAll();
 document.getElementById('allfam').onclick=()=>unfocusFam();
 svg.on('click', ()=>{ if(state.top){ if(state.path) topBack(); } else unfocusFam(); });
-document.getElementById('totop').onclick=()=>goTop();
+document.getElementById('totop').onclick=()=>{ if(state.afp) navTop(PATHS[0]); else goTop(); };
 document.getElementById('emback').onclick=()=>closeEM();
 document.getElementById('v-sys').onclick=()=>{ closeCons(); if(state.em) closeEM(); if(state.dom) closeDomain(); if(!state.top || state.path){ state.path=null; state.group=null; goTop(); } };
-document.getElementById('v-app').onclick=()=>{ closeCons(); if(state.em){ state.em=false; tm.hidden=true; tm.innerHTML=''; svg.style('visibility',null); } if(state.dom) closeDomain(); if(state.top) goApp(); };
+document.getElementById('v-app').onclick=()=>{ closeCons(); if(state.em){ state.em=false; tm.hidden=true; tm.innerHTML=''; svg.style('visibility',null); } if(state.dom) closeDomain(); if(state.top || state.afp) goApp(); };
 document.getElementById('paths').onclick=()=>{ closeQuiz(); state.group=null; state.path=null; renderTop(); setUI(); fit(); };
 /* Quiz « Je ne connais pas ma voie » : VP, or VG + how many of FR / MATH / ALL are in niveau 2 → the matching level planet */
 const quiz = document.getElementById('quiz');
@@ -1802,8 +1849,8 @@ document.getElementById('quiz-go').onclick = ()=>{
   const grp = SCO.kids.find(k=>k.lvl && (vp ? k.lvl.vp : !k.lvl.vp && k.lvl.n2===n2));
   closeQuiz(); openSco(grp); };
 document.getElementById('back').onclick=()=>closeDomain();
-document.getElementById('prev').onclick=()=>openDomain((state.dom+20)%22+1);
-document.getElementById('next').onclick=()=>openDomain(state.dom%22+1);
+document.getElementById('prev').onclick=()=>openDomain(stepDom(state.dom,-1));
+document.getElementById('next').onclick=()=>openDomain(stepDom(state.dom,1));
 document.addEventListener('keydown', e=>{ if(e.key!=='Escape' || e.target.id==='q') return;
   if(!quiz.hidden) closeQuiz();
   else if(state.cons){ if(consPage) showConsPage(false); else closeCons(); }
@@ -1811,6 +1858,7 @@ document.addEventListener('keydown', e=>{ if(e.key!=='Escape' || e.target.id==='
   else if(state.dom) closeDomain();
   else if(state.top){ if(state.path) topBack(); }
   else if(state.fam) unfocusFam();
+  else if(state.afp) navTop(PATHS[0]);
   else goTop(); });
 let qt;
 function runSearch(v){
@@ -2115,6 +2163,7 @@ renderDetail();
     if(pm){ const ids = pm[1].split(',').filter(id=>CM.some(c=>c.id===id)); if(ids.length){ consPref.sel = ids; consPref.mode = pm[2]; consSave(); } }
     showLayer(true); renderTop(); fit(); openCons(!!pm); }
   else if(location.hash==='#apprentissage') goApp();
+  else if(location.hash==='#afp') goApp(true);
   else if(location.hash==='#ecoles-metiers'){ showLayer(true); renderTop(); openEM(); }
   else { showLayer(true); renderTop(); setUI(); fit(); } }
 })();
