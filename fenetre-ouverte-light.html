@@ -7,19 +7,19 @@
 <style>
 /* Layout: full-height explorer — header with controls, zoomable graph stage, side panel (legend by interest family + detail). Stacks on phones. */
 :root{
-  --bg:#ffffff; --surface:#ffffff; --ink:#17202a; --muted:#5a6573; --line:#d4dbe2; --accent:#d52b1e;
+  --bg:#ffffff; --surface:#ffffff; --ink:#17202a; --muted:#5a6573; --line:#d4dbe2; --accent:#17803d; --on-accent:#ffffff;
   --ns:60%; --nl:39%;
   --display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
   --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0d1218; --surface:#141b23; --ink:#e4e9ee; --muted:#93a0ad; --line:#26313d; --accent:#ff5c50;
+    --bg:#0d1218; --surface:#141b23; --ink:#e4e9ee; --muted:#93a0ad; --line:#26313d; --accent:#4ccf7f; --on-accent:#0d1218;
     --ns:62%; --nl:65%; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0d1218; --surface:#141b23; --ink:#e4e9ee; --muted:#93a0ad; --line:#26313d; --accent:#ff5c50;
+  --bg:#0d1218; --surface:#141b23; --ink:#e4e9ee; --muted:#93a0ad; --line:#26313d; --accent:#4ccf7f; --on-accent:#0d1218;
   --ns:62%; --nl:65%; color-scheme:dark;
 }
 html,body{height:100%}
@@ -44,7 +44,7 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(20px,2.6vw,28px);l
 .flt-l{font-size:12px;font-weight:700;color:var(--muted)}
 .chip .n{font-weight:400;color:var(--muted)}
 .btn-cons{font:inherit;font-weight:700;font-size:13px;padding:7px 14px;border-radius:999px;border:1.5px solid var(--accent);color:var(--accent);background:none;cursor:pointer;white-space:nowrap}
-.btn-cons[aria-pressed="true"]{background:var(--accent);color:#fff}
+.btn-cons[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
 .btn-ico{display:inline-grid;place-items:center;width:36px;height:36px;padding:0;border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;font-size:16px}
 .app.top-on .flt{display:none}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--bg)}
@@ -113,7 +113,7 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(20px,2.6vw,28px);l
 #quiz label:has(input:checked){border-color:var(--accent);background:color-mix(in srgb, var(--accent) 10%, var(--surface));font-weight:700}
 #quiz input{accent-color:var(--accent);margin:0}
 #quiz .quiz-x{position:absolute;top:8px;right:10px;font:inherit;font-size:22px;line-height:1;background:none;border:0;color:var(--muted);cursor:pointer}
-#quiz .quiz-go{font:inherit;font-weight:800;font-size:13px;margin-top:6px;padding:8px 14px;border-radius:999px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+#quiz .quiz-go{font:inherit;font-weight:800;font-size:13px;margin-top:6px;padding:8px 14px;border-radius:999px;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
 #viz:active{cursor:grabbing}
 .stage-bar{position:absolute;z-index:2;left:max(12px,env(safe-area-inset-left,0px));bottom:12px;right:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;pointer-events:none}
 .stage-bar .btn{pointer-events:auto;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;font-weight:700}
@@ -340,7 +340,7 @@ aside h2{font-family:var(--display);font-size:12px;letter-spacing:.09em;text-tra
 .ct-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding-bottom:16px}
 .ct{--h:4}
 .ct .ot-kid,.ct .ot-root{--wire:color-mix(in srgb,hsl(var(--h) 55% 50%) 55%,var(--line))}
-.ct .ot-root{width:auto;min-width:200px;padding:14px 22px;background:var(--accent)}
+.ct .ot-root{width:auto;min-width:200px;padding:14px 22px;background:var(--accent);color:var(--on-accent)}
 .ct .ot-root strong{display:block;font-family:var(--display);font-weight:800;font-size:18px}
 .ct .ot-kid{width:200px}
 /* generate bar + generated page */
@@ -348,7 +348,7 @@ aside h2{font-family:var(--display);font-size:12px;letter-spacing:.09em;text-tra
   padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(6px);box-shadow:0 6px 20px rgba(0,0,0,.08)}
 .cons-go .sum{font-size:13px;color:var(--muted)}
 .cons-go .sum b{color:var(--ink)}
-.go-btn{font:inherit;font-weight:700;font-size:14px;border:0;border-radius:999px;padding:10px 20px;background:var(--accent);color:#fff;cursor:pointer}
+.go-btn{font:inherit;font-weight:700;font-size:14px;border:0;border-radius:999px;padding:10px 20px;background:var(--accent);color:var(--on-accent);cursor:pointer}
 .go-btn:hover{filter:brightness(1.08)}
 .go-btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
 .mp-top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -1212,6 +1212,8 @@ const MOONS = {
 MOONS.app.phases = [
   {label:'Maturité professionnelle', when:'intégrée', tip:'Maturité professionnelle intégrée (MP1) — en parallèle du CFC, pendant l’apprentissage'},
   {label:'Maturité professionnelle', when:'post-CFC', tip:'Maturité professionnelle post-CFC (MP2) — après le CFC, 1 an à plein temps ou 2 ans en cours d’emploi'}];
+// the apprentissage maturités get their own outer orbit, beyond the types d'apprentissage
+MOONS.app.orbit = TOP.KR + 150;
 MOONS.ecg.phases = [
   {label:'Maturité spécialisée', when:'post-certificat', tip:'Maturité spécialisée — après le certificat ECG, en 1 année supplémentaire (stages ou travail selon le domaine)'}];
 MOONS.gym.phases = [
@@ -1220,9 +1222,9 @@ MOONS.gym.phases = [
 const PMOON_R = 168, PMOON_r = 50;
 PATHS.forEach(pp=>{ const m = MOONS[pp.key]; pp.moons = [];
   if(!m || !m.phases) return;
-  const k = m.phases.length, step = 44*Math.PI/180;
+  const R = pp.moonR = m.orbit || PMOON_R, k = m.phases.length, step = (2*PMOON_r + 30)/R;
   const others = (pp.kids||[]).flatMap(c=>[c, ...(c.kids||[])]);
-  const at = t => [pp.x+PMOON_R*Math.cos(t), pp.y+PMOON_R*Math.sin(t)];
+  const at = t => [pp.x+R*Math.cos(t), pp.y+R*Math.sin(t)];
   const room = t => { const [x,y]=at(t); return Math.min(...others.map(o=>Math.hypot(o.x-x,o.y-y)-o.r)); };
   let best = 0, bestRoom = -Infinity;
   for(let d=0; d<360; d+=3){ const c = d*Math.PI/180;
@@ -1388,7 +1390,7 @@ function renderTop(){
   ringG.attr('pointer-events', P ? 'none' : null).interrupt().transition(T).style('opacity', P ? 0 : 1);
   ringLab.interrupt().transition(T).style('opacity', P ? 0 : 1);
   const orbs = !P ? [] : [{id:'o-'+P.id, x:P.x, y:P.y, r:TOP.KR, h:P.h, glow:P.id},
-    ...(P.moons.length ? [{id:'om-'+P.id, x:P.x, y:P.y, r:PMOON_R, h:P.h}] : []),
+    ...(P.moons.length ? [{id:'om-'+P.id, x:P.x, y:P.y, r:P.moonR, h:P.h}] : []),
     ...(G && G.kids.length ? [{id:'o-'+G.id, x:G.x, y:G.y, r:Math.hypot(G.kids[0].x-G.x, G.kids[0].y-G.y), h:P.h}] : [])];
   orbitG.selectAll('g.orb').data(orbs, d=>d.id).join(
       enter => { const e = enter.append('g').attr('class','orb').attr('transform',d=>`translate(${d.x},${d.y})`).style('opacity',0);
@@ -1913,8 +1915,8 @@ const shortUrl = u => u.replace(/^https:\/\/(www\.)?/,'').replace(/\?.*$/,'');
 const ICON_LIN = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="5" width="6" height="6" rx="3" fill="currentColor"/><rect x="12" y="6.5" width="19" height="3" rx="1.5" fill="currentColor" opacity=".55"/><rect x="3" y="14" width="6" height="6" rx="3" fill="currentColor"/><rect x="12" y="15.5" width="15" height="3" rx="1.5" fill="currentColor" opacity=".55"/><rect x="3" y="23" width="6" height="6" rx="3" fill="currentColor"/><rect x="12" y="24.5" width="17" height="3" rx="1.5" fill="currentColor" opacity=".55"/></svg>';
 const ICON_SOL = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 3"/><circle cx="17" cy="17" r="5" fill="#ffb000"/><circle cx="17" cy="4" r="3" fill="currentColor"/><circle cx="28.3" cy="23.5" r="3" fill="currentColor"/><circle cx="5.7" cy="23.5" r="3" fill="currentColor"/></svg>';
 
-const ICON_MIND = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" opacity=".7"><path d="M17 17C11 17 12 8 6 8M17 17C11 17 12 26 6 26M17 17C23 17 22 8 28 8M17 17C23 17 22 26 28 26"/></g><rect x="11" y="13.5" width="12" height="7" rx="3.5" fill="#d52b1e"/><circle cx="5" cy="8" r="2.6" fill="currentColor"/><circle cx="5" cy="26" r="2.6" fill="currentColor"/><circle cx="29" cy="8" r="2.6" fill="currentColor"/><circle cx="29" cy="26" r="2.6" fill="currentColor"/></svg>';
-const ICON_TREE = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" opacity=".7"><path d="M17 10v5M6 15h22M6 15v5M17 15v5M28 15v5"/></g><rect x="11" y="3" width="12" height="7" rx="2" fill="#d52b1e"/><rect x="2" y="20" width="8" height="5" rx="1.5" fill="currentColor"/><rect x="13" y="20" width="8" height="5" rx="1.5" fill="currentColor"/><rect x="24" y="20" width="8" height="5" rx="1.5" fill="currentColor"/><rect x="2" y="27" width="8" height="4" rx="1.5" fill="currentColor" opacity=".5"/><rect x="13" y="27" width="8" height="4" rx="1.5" fill="currentColor" opacity=".5"/><rect x="24" y="27" width="8" height="4" rx="1.5" fill="currentColor" opacity=".5"/></svg>';
+const ICON_MIND = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" opacity=".7"><path d="M17 17C11 17 12 8 6 8M17 17C11 17 12 26 6 26M17 17C23 17 22 8 28 8M17 17C23 17 22 26 28 26"/></g><rect x="11" y="13.5" width="12" height="7" rx="3.5" fill="#17803d"/><circle cx="5" cy="8" r="2.6" fill="currentColor"/><circle cx="5" cy="26" r="2.6" fill="currentColor"/><circle cx="29" cy="8" r="2.6" fill="currentColor"/><circle cx="29" cy="26" r="2.6" fill="currentColor"/></svg>';
+const ICON_TREE = '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" opacity=".7"><path d="M17 10v5M6 15h22M6 15v5M17 15v5M28 15v5"/></g><rect x="11" y="3" width="12" height="7" rx="2" fill="#17803d"/><rect x="2" y="20" width="8" height="5" rx="1.5" fill="currentColor"/><rect x="13" y="20" width="8" height="5" rx="1.5" fill="currentColor"/><rect x="24" y="20" width="8" height="5" rx="1.5" fill="currentColor"/><rect x="2" y="27" width="8" height="4" rx="1.5" fill="currentColor" opacity=".5"/><rect x="13" y="27" width="8" height="4" rx="1.5" fill="currentColor" opacity=".5"/><rect x="24" y="27" width="8" height="4" rx="1.5" fill="currentColor" opacity=".5"/></svg>';
 const CONS_ICON = m => ({lin:ICON_LIN, sol:ICON_SOL, mind:ICON_MIND, tree:ICON_TREE})[m];
 const consBody = sel => ({lin:consLinear, sol:consSolar, mind:consMind, tree:consTree})[consPref.mode](sel);
 
