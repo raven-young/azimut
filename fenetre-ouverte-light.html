@@ -1448,10 +1448,10 @@ const MIX = {2:'10%',3:'22%',4:'36%'};
 const isBranch = p => p.name==='Employé de commerce' || p.name==='Gestionnaire du commerce de détail';
 function jobCard(p){
   return `<a class="tm-job" href="${p.url}" target="_blank" rel="noopener" style="--mix:${MIX[p.level]}" data-uid="${p.uid}" data-key="${p.key.replace(/"/g,'&quot;')}"
-      aria-label="${p.name}, ${LEVEL[p.level]} : ouvrir la fiche sur orientation.ch">
+      aria-label="${p.name}, ${LEVEL[p.level]} : lire la description">
     <span class="t">${p.name}</span><span class="lv">${LEVEL[p.level]}</span>
     ${p.specs.length?`<span class="sp">${isBranch(p)?'Branches':'Orientations'} : ${p.specs.join(' · ')}</span>`:''}
-    <span class="go">${p.exact?'Fiche orientation.ch ↗':'Chercher sur orientation.ch ↗'}</span></a>`;
+    <span class="go">Lire la description</span></a>`;
 }
 function renderTreemap(D, animate){
   const jobs = profsOf(D), lv = l => jobs.filter(p=>p.level===l).length;
@@ -1471,7 +1471,11 @@ function renderTreemap(D, animate){
     el.addEventListener('mouseenter', ev=>showTip(ev, tipFor('prof', p)));
     el.addEventListener('mousemove', moveTip);
     el.addEventListener('mouseleave', hideTip);
-    el.addEventListener('click', ()=>select(p.key,false)); });
+    el.addEventListener('click', ev=>{
+      if(ev.metaKey||ev.ctrlKey||ev.shiftKey||ev.button===1) return; // modifier-click still opens orientation.ch in a new tab
+      ev.preventDefault(); hideTip();
+      if(state.sel!==p.key) select(p.key,false);
+      if(matchMedia('(max-width:860px)').matches) document.getElementById('detail-wrap').scrollIntoView({block:'start', behavior: DUR?'smooth':'auto'}); }); });
   // centre the root horizontally when the tree is wider than the screen
   tm.scrollLeft = Math.max(0, (tm.scrollWidth - tm.clientWidth)/2);
 }
