@@ -1010,8 +1010,8 @@ function drawBubble(g, n){
     g.append('circle').attr('r',n.r+9).style('fill','none').style('stroke','var(--accent)').attr('stroke-opacity',.35).attr('stroke-width',1.5);
     g.append('circle').attr('r',n.r).style('fill','var(--surface)').style('stroke','var(--accent)').attr('stroke-width',4);
     const tx=g.append('text').attr('text-anchor','middle');
-    [['FENÊTRE','bt-root1',-34],['OUVERTE','bt-root1',-6],['sur les professions','bt-root2',20],
-     [`9 intérêts · ${domains.length} domaines · ${uniq.length} métiers`,'bt-root3',46],['Clique sur une bulle','bt-root3',62]]
+    [['CHOIX','bt-root1',-24],['PROFESSIONNEL','bt-root1',6],
+     [`9 intérêts · ${domains.length} domaines · ${uniq.length} métiers`,'bt-root3',40],['Clique sur une bulle','bt-root3',58]]
       .forEach(([s,c,y])=>tx.append('tspan').attr('class',c).attr('x',0).attr('y',y).text(s));
     return;
   }
