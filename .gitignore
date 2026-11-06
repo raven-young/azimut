@@ -3,3 +3,4 @@ _site/
 # source material kept local (large originals and third-party PDFs)
 Assets/
 *.pdf
+node_modules/

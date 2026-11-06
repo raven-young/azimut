@@ -2,6 +2,8 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '30 4 * * *'   # every day ~05:30/06:30 Swiss time: refresh apprenticeship-place counts
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,7 +11,7 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,6 +21,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./build.sh
+      # yesterday's counts: fallback for failed ids, and what a plain push redeploys
+      - run: |
+          curl -sfL https://raven-young.github.io/azimut/places.json -o prev.json || true
+          curl -sfL https://raven-young.github.io/azimut/vd-places.json -o prev-vd.json || true
+      - if: github.event_name == 'push'
+        run: |
+          [ -s prev.json ] && cp prev.json _site/places.json || true
+          [ -s prev-vd.json ] && cp prev-vd.json _site/vd-places.json || true
+      - if: github.event_name != 'push'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - if: github.event_name != 'push'
+        name: Refresh places from orientation.ch (counts per métier + Vaud map list)
+        continue-on-error: true
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps --only-shell chromium
+          node scripts/update-places.mjs _site/places.json prev.json
+      - if: github.event_name != 'push'
+        run: |
+          [ -s _site/places.json ] || { [ -s prev.json ] && cp prev.json _site/places.json; } || true
+          [ -s _site/vd-places.json ] || { [ -s prev-vd.json ] && cp prev-vd.json _site/vd-places.json; } || true
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
