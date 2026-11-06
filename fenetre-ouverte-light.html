@@ -1225,12 +1225,12 @@ const EM = [
 const emLeaf = s => ({...L(`${s.abbr} · ${s.city.split(' · ')[0]} ↗`, s.url), tip:`${s.abbr} — ${s.name}\n${s.jobs.filter(j=>!j.pre).map(j=>j.label).join(' · ')}`});
 const PATHS = [
   {id:'p-app', key:'app', title:'Apprentissage', sub:'dual en entreprise ou en école à plein temps', meta:'AFP 2 ans · CFC 3–4 ans', h:213, ang:-90, kids:[
-    GO('Apprentissage dual · explorer les métiers →', 'app'),
-    {t:'go', go:'afp', afp:true, label:'AFP', tip:'Attestation fédérale de formation professionnelle (AFP) — 2 ans, plus pratique · clique pour voir les métiers qui ont une AFP'},
-    {t:'group', label:'Plein temps en école de métiers', count:'7 écoles', kids:[
+    {...GO('Apprentissage dual · explorer les métiers →', 'app'), img:'a-dual'},
+    {t:'go', go:'afp', afp:true, img:'a-afp', label:'AFP', tip:'Attestation fédérale de formation professionnelle (AFP) — 2 ans, plus pratique · clique pour voir les métiers qui ont une AFP'},
+    {t:'group', label:'Plein temps en école de métiers', count:'7 écoles', img:'a-em', kids:[
       ...EM.slice(0,4).map(emLeaf), GO('Voir les CFC par école →', 'em'), ...EM.slice(4,7).map(emLeaf),
       L('Demander l’admission (vd.ch) ↗', VDP+'prestation/demander-ladmission-en-ecole-de-metiers')]},
-    L('Plein temps en école de commerce ↗', VDP+'formation/formation-professionnelle/ecole-de-commerce')]},
+    L('Plein temps en école de commerce ↗', VDP+'formation/formation-professionnelle/ecole-de-commerce', 'a-com')]},
   {id:'p-ecg', key:'ecg', title:'École de culture générale', sub:'ECG · canton de Vaud', meta:'6 domaines au choix', h:150, ang:0, kids:[
     L('Santé ↗', VD+'domaine-sante', 'e-sante'), L('Travail social ↗', VD+'domaine-travail-social', 'e-social'), L('Pédagogie ↗', VD+'domaine-pedagogie', 'e-peda'),
     L('Communication-information ↗', VD+'domaine-communication-et-information', 'e-comm'), L('Arts et design ↗', VD+'domaine-arts-et-design', 'e-arts'), L('Musique ↗', VD+'domaine-musique', 'e-musique')]},
@@ -1441,6 +1441,18 @@ function drawTop(g, n){
     return;
   }
   const hue = (n.parent.h ?? n.parent.parent.h);
+  if(n.img && n.t!=='link'){
+    // illustrated option (apprentissage: dual, AFP, école de métiers): its name is printed in the picture
+    z.append('title').text(n.tip || n.label.replace(' →',''));
+    if(n.t==='group') z.append('circle').attr('class','halo').attr('r',n.r+5).style('fill','none').style('stroke',col(hue)).attr('stroke-opacity',.45).attr('stroke-width',2);
+    z.append('circle').attr('r',n.r).style('fill','#fbf3e6');
+    const W = 2*n.r*1.06;
+    z.append('image').attr('href', `img/${n.img}.jpg`).attr('x',-W/2).attr('y',-W/2).attr('width',W).attr('height',W)
+      .attr('clip-path','url(#clip-kidimg)').attr('preserveAspectRatio','xMidYMid slice');
+    z.append('circle').attr('class','dot').attr('r',n.r).style('fill','none').style('stroke', col(hue)).attr('stroke-width', 3);
+    pastille(z, n, n.t==='group' ? '+' : '→');
+    return;
+  }
   if(n.t==='group'){
     z.append('circle').attr('class','halo').attr('r',n.r+5).style('fill','none').style('stroke',col(hue)).attr('stroke-opacity',.45).attr('stroke-width',2);
     z.append('circle').attr('class','dot').attr('r',n.r).style('fill',col(hue)).style('stroke','var(--surface)').attr('stroke-width',2);
