@@ -2509,7 +2509,7 @@ function plUpdate(){
   document.getElementById('pl-ql').textContent = plMode==='ecole' ? 'Chercher une école de métiers' : 'Filtrer les places';
   document.getElementById('pl-call2').textContent = plData ? `${nPl(plData.n)} · clique pour voir` : 'clique pour voir les places';
   document.getElementById('pl-stat').textContent = !plData ? '' : plZoomed
-    ? `${nPl(n)} dans ${locs.length} localité${locs.length>1?'s':''}${plDom?' · '+domByNum[plDom].name:''}${plJob&&plMode!=='ecole'?' · '+plJobName(plJob):''}${plMode==='ecole'&&plEm!=null?' · '+PL_EM[plEm].s.abbr:''}${plQ&&plMode!=='ecole'?' (filtre actif)':''} · orientation.ch, ${plDate(plData.updated)}`
+    ? `source : orientation.ch, ${plDate(plData.updated)}`
     : `Mise à jour quotidienne · ${plDate(plData.updated)}`;
   const dots = d3.select('#pl-dots').selectAll('circle').data(plZoomed ? locs : [], d => d.l.k);
   dots.exit().remove();
