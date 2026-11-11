@@ -69,7 +69,6 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(20px,2.6vw,28px);l
 .bt-root2{font-family:var(--display);font-weight:700;fill:var(--ink);stroke:none;font-size:15px}
 .bt-root3{fill:var(--muted);stroke:none;font-size:10.5px}
 .on-light .bt-root1,.on-light .bt-root2{fill:#17202a}.on-light .bt-root3{fill:#4a5462}
-.on-light .bt-path{fill:#17202a}.on-light .bt-pathc{fill:#4a5462;opacity:1}
 .bt-dom{font-family:var(--display);font-weight:800;fill:var(--surface);stroke:none;letter-spacing:.03em}
 .bt-sub{font-weight:700;fill:var(--ink);stroke:none}
 .bt-job{font-weight:700;fill:var(--ink);stroke:none}
@@ -1424,26 +1423,30 @@ state.top = true; state.path = null; state.group = null;
 
 function drawTop(g, n){
   if(n.type==='tcentre'){
-    // the centre is the « École obligatoire » bubble (same look, scaled up); a click opens the quiz « Trouve ta voie »
-    g.append('title').text('École obligatoire — clique pour trouver les formations qui te sont ouvertes');
-    const sc = g.append('g').attr('transform', `scale(${n.r/TOP.path})`);
-    drawTop(sc, {...SCO, id:'top-sco', type:'path', r:TOP.path, light:true});
+    // the centre looks exactly like the « Fenêtre ouverte claire » one; a click opens the quiz « Trouve ta voie »
+    g.append('title').text('Clique pour trouver les formations qui te sont ouvertes');
+    const zc = g.append('g').attr('class','zoomable');
+    zc.append('circle').attr('r',n.r+9).style('fill','none').style('stroke','var(--accent)').attr('stroke-opacity',.35).attr('stroke-width',1.5);
+    zc.append('circle').attr('r',n.r).style('fill','#f8ecdd');
+    topBg(zc, n.r, 'img/p0.jpg', 'clip-top');
+    zc.append('circle').attr('r',n.r).style('fill','none').style('stroke','var(--accent)').attr('stroke-width',4);
+    const tx=zc.append('text').attr('class','on-light').attr('text-anchor','middle');
+    [['APRÈS L’ÉCOLE','bt-root1',4],['OBLIGATOIRE','bt-root1',28],['quelle voie choisir ?','bt-root2',52],['Clique sur une bulle','bt-root3',74]]
+      .forEach(([s,c,y])=>tx.append('tspan').attr('class',c).attr('x',0).attr('y',y).text(s).style('font-size', c==='bt-root1'?'21px':null));
     return;
   }
   const z = g.append('g').attr('class','zoomable');
   if(n.type==='path'){
-    // light: the cream look of the « Fenêtre ouverte claire » centre (no teal fade, accent ring, dark text)
-    z.append('circle').attr('r',n.r+6).style('fill','none').style('stroke',n.light?'var(--accent)':col(n.h)).attr('stroke-opacity',n.light?.35:.45).attr('stroke-width',n.light?1.5:2);
-    z.append('circle').attr('r',n.r).style('fill',n.light?'#f8ecdd':col(n.h));
+    z.append('circle').attr('r',n.r+6).style('fill','none').style('stroke',col(n.h)).attr('stroke-opacity',.45).attr('stroke-width',2);
+    z.append('circle').attr('r',n.r).style('fill',col(n.h));
     if(!n.noImg) topBg(z, n.r, n.bg || `img/${n.id}.jpg`, 'clip-path');
-    if(n.fade && !n.light){ z.append('circle').attr('r',n.r).attr('pointer-events','none').style('fill','url(#fade-idk)'); }
-    z.append('circle').attr('class','dot').attr('r',n.r).style('fill','none').style('stroke',n.light?'var(--accent)':'var(--surface)').attr('stroke-width',n.light?3:2);
-    const tz = n.light ? z.append('g').attr('class','on-light') : z;
-    wrapText(tz, n.title.toUpperCase(), n.r*0.92, 14, 'bt-path', 3, 8);
-    wrapText(tz, n.sub, n.r*0.78, 10.5, 'bt-pathc', 2, 42);
+    if(n.fade){ z.append('circle').attr('r',n.r).attr('pointer-events','none').style('fill','url(#fade-idk)'); }
+    z.append('circle').attr('class','dot').attr('r',n.r).style('fill','none').style('stroke','var(--surface)').attr('stroke-width',2);
+    wrapText(z, n.title.toUpperCase(), n.r*0.92, 14, 'bt-path', 3, 8);
+    wrapText(z, n.sub, n.r*0.78, 10.5, 'bt-pathc', 2, 42);
     // meta: one line if it fits the narrow bottom of the circle, otherwise break at the « · »
     const meta = n.meta.length > 24 ? n.meta.split(' · ') : [n.meta];
-    const mt = tz.append('text').attr('class','bt-pathc bt-meta').attr('text-anchor','middle').style('font-size','10.5px');
+    const mt = z.append('text').attr('class','bt-pathc bt-meta').attr('text-anchor','middle').style('font-size','10.5px');
     meta.forEach((s,i)=>mt.append('tspan').attr('x',0).attr('y', 70 + (i-(meta.length-1)/2)*12.5).text(s));
     return;
   }
@@ -1691,7 +1694,7 @@ function setTitle(){
     t = state.group ? state.group.label : P.title;
     sub = state.group ? [P.title, state.group.count].filter(Boolean).join(' · ') : [P.sub, P.meta].filter(Boolean).join(' · '); }
   else if(state.top){ k = 'Parcours de formation · Système suisse';
-    t = 'Après l’école obligatoire'; sub = "Clique sur « École obligatoire » au centre pour trouver ta voie · ou explore les voies du secondaire II"; }
+    t = 'Après l’école obligatoire'; sub = "Clique sur la bulle au centre pour trouver ta voie · ou explore les voies du secondaire II"; }
   else if(state.fam){ const F = FAMILIES.find(f=>f.n===state.fam), ds = visDoms(F), ps = ds.flatMap(vProfs);
     k = state.afp ? `Métiers AFP · Intérêt ${F.n}` : `Métiers · Intérêt ${F.n} sur ${FAMILIES.length}`;
     t = F.short; sub = `${ds.length} domaine${ds.length>1?'s':''} · ${nProfs(ps)} professions${state.afp?' AFP':''}`; }
@@ -1725,7 +1728,7 @@ function setUI(){
     ? 'Clique sur une école pour son site · sur un métier pour sa fiche · Échap pour revenir'
     : open ? 'Clic sur une profession pour le détail · Échap pour revenir'
     : top && state.path===SCO ? 'Clique sur ta voie pour voir les formations qui te sont ouvertes · Échap pour revenir'
-    : top && !state.path ? 'Clique sur « École obligatoire » pour trouver ta voie · ou sur une voie pour voir ses options'
+    : top && !state.path ? 'Clique au centre pour trouver ta voie · ou sur une voie pour voir ses options'
     : top ? 'Clique sur une voie pour voir ses options · Échap pour revenir'
     : state.afp ? 'Métiers AFP seulement · clic sur un domaine pour voir ses métiers · « Métiers » pour tout voir'
     : 'Clic sur un intérêt pour voir ses domaines · clic sur un domaine pour voir ses métiers';

@@ -70,7 +70,6 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(20px,2.6vw,28px);l
 .bt-root2{font-family:var(--display);font-weight:700;fill:var(--ink);stroke:none;font-size:15px}
 .bt-root3{fill:var(--muted);stroke:none;font-size:10.5px}
 .on-light .bt-root1,.on-light .bt-root2{fill:#17202a}.on-light .bt-root3{fill:#4a5462}
-.on-light .bt-path{fill:#17202a}.on-light .bt-pathc{fill:#4a5462;opacity:1}
 .bt-dom{font-family:var(--display);font-weight:800;fill:var(--surface);stroke:none;letter-spacing:.03em}
 .bt-sub{font-weight:700;fill:var(--ink);stroke:none}
 .bt-job{font-weight:700;fill:var(--ink);stroke:none}
@@ -1435,18 +1434,16 @@ function drawTop(g, n){
   }
   const z = g.append('g').attr('class','zoomable');
   if(n.type==='path'){
-    // light: the cream look of the « Fenêtre ouverte claire » centre (no teal fade, accent ring, dark text)
-    z.append('circle').attr('r',n.r+6).style('fill','none').style('stroke',n.light?'var(--accent)':col(n.h)).attr('stroke-opacity',n.light?.35:.45).attr('stroke-width',n.light?1.5:2);
-    z.append('circle').attr('r',n.r).style('fill',n.light?'#f8ecdd':col(n.h));
+    z.append('circle').attr('r',n.r+6).style('fill','none').style('stroke',col(n.h)).attr('stroke-opacity',.45).attr('stroke-width',2);
+    z.append('circle').attr('r',n.r).style('fill',col(n.h));
     if(!n.noImg) topBg(z, n.r, n.bg || `img/${n.id}.jpg`, 'clip-path');
-    if(n.fade && !n.light){ z.append('circle').attr('r',n.r).attr('pointer-events','none').style('fill','url(#fade-idk)'); }
-    z.append('circle').attr('class','dot').attr('r',n.r).style('fill','none').style('stroke',n.light?'var(--accent)':'var(--surface)').attr('stroke-width',n.light?3:2);
-    const tz = n.light ? z.append('g').attr('class','on-light') : z;
-    wrapText(tz, n.title.toUpperCase(), n.r*0.92, 14, 'bt-path', 3, 8);
-    wrapText(tz, n.sub, n.r*0.78, 10.5, 'bt-pathc', 2, 42);
+    if(n.fade){ z.append('circle').attr('r',n.r).attr('pointer-events','none').style('fill','url(#fade-idk)'); }
+    z.append('circle').attr('class','dot').attr('r',n.r).style('fill','none').style('stroke','var(--surface)').attr('stroke-width',2);
+    wrapText(z, n.title.toUpperCase(), n.r*0.92, 14, 'bt-path', 3, 8);
+    wrapText(z, n.sub, n.r*0.78, 10.5, 'bt-pathc', 2, 42);
     // meta: one line if it fits the narrow bottom of the circle, otherwise break at the « · »
     const meta = n.meta.length > 24 ? n.meta.split(' · ') : [n.meta];
-    const mt = tz.append('text').attr('class','bt-pathc bt-meta').attr('text-anchor','middle').style('font-size','10.5px');
+    const mt = z.append('text').attr('class','bt-pathc bt-meta').attr('text-anchor','middle').style('font-size','10.5px');
     meta.forEach((s,i)=>mt.append('tspan').attr('x',0).attr('y', 70 + (i-(meta.length-1)/2)*12.5).text(s));
     return;
   }
