@@ -420,6 +420,14 @@ aside h2{font-family:var(--display);font-size:12px;letter-spacing:.09em;text-tra
 .pl-loc b{font-variant-numeric:tabular-nums;color:var(--accent)}
 .pl-loc .pl-ln{flex-direction:column;align-items:flex-start;gap:1px}
 .pl-ln small{font-size:12px;line-height:1.35;color:var(--muted)}
+.pl-bj>div:first-child a{color:var(--ink);font-weight:700;text-decoration:none}
+.pl-bj>div:first-child a:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.pl-job.pl-bj>.pl-locs{display:flex;flex-direction:column;justify-content:normal;gap:0;font-weight:400;margin:4px 0 2px;padding-left:10px;border-left:2px solid var(--line)}
+.pl-job.pl-bj>.pl-locs span{color:var(--ink);flex:initial}
+.pl-bj .pl-loc{padding:4px 8px}
+.pl-only{font:inherit;font-size:12.5px;font-weight:700;color:var(--accent);background:none;border:0;padding:2px 0 0 12px;cursor:pointer}
+.pl-only:hover{text-decoration:underline;text-underline-offset:3px}
+.pl-sub{font-size:13px;color:var(--muted)}
 .pl-hint.pl-jobs button{text-align:left}
 .pl-hint.pl-jobs small{font-weight:400;color:var(--muted)}
 .pl-hint.pl-jobs button[aria-pressed="true"]{text-decoration:none;background:var(--accent);color:var(--bg);border-radius:5px;padding:0 5px;margin-right:6px}
@@ -2365,6 +2373,9 @@ const plEmHas = (e, it) => plEmOwn(e, it) || !!(plData && plData.pids && it[3]!=
 const plEmHits = () => plQ.length < 2 ? PL_EM : PL_EM.filter(e => e.q.includes(plQ));
 /* each listing carries the orientation.ch profession id it was found under (plData.pids) → its domain(s) in this explorer */
 const PL_DOM = {}; uniq.forEach(u => { const f = OC_INFO[u.occ[0].name+'|'+u.level]; if(f && f.id) PL_DOM[f.id] = [...new Set(u.occ.map(p=>p.domain.num))]; });
+/* orientation.ch profession id → its description page, so a métier in the results links to it */
+const PL_URL = {}; Object.keys(OC_INFO).forEach(k => { const f = OC_INFO[k]; if(f.id && OC_SLUG[k]) PL_URL[f.id] = OC_BASE + OC_SLUG[k]; });
+const plUrlOf = it => (plData && plData.pids && it[3]!=null && PL_URL[plData.pids[it[3]]]) || null;
 const plDomsOf = it => (plData && plData.pids && it[3]!=null && PL_DOM[plData.pids[it[3]]]) || [];
 function plLoad(){
   if(!plLoading) plLoading = (async()=>{
@@ -2381,15 +2392,22 @@ const plMatch = it => { const t = norm(it[1]+' '+it[0]); return plWords().every(
 const plJobName = t => t.replace(/\s*\(\d{4}\)\s*$/, '');
 const plItems = l => l.items.filter(it => plMode==='ecole' ? (plEm==null || plEmHas(PL_EM[plEm], it))
   : (!plQ || plMatch(it)) && (!plJob || it[1]===plJob) && (!plDom || plDomsOf(it).includes(plDom)));
-/* « Métiers trouvés » : the métiers behind a search, as chips that narrow the map to one of them */
-function plJobChips(){
-  if(plQ.length < 2 || !plData) return '';
-  const c = new Map();
-  plData.locs.forEach(l => l.items.forEach(it => { if(plMatch(it) && (!plDom || plDomsOf(it).includes(plDom))) c.set(it[1], (c.get(it[1])||0) + (it[2]||1)); }));
-  if(!c.size) return '';
-  const js = [...c].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'fr')), max = 15;
-  return `<p class="pl-hint pl-jobs">Métier${js.length>1?'s':''} trouvé${js.length>1?'s':''} : ${plJob ? '<button type="button" data-job="">Tous</button>' : ''}${js.slice(0,max).map(([t,k]) =>
-    `<button type="button" data-job="${esc(t)}" aria-pressed="${t===plJob}">${esc(plJobName(t))} <small>${k}</small></button>`).join('')}${js.length>max ? ` <small>+ ${js.length-max} autres : précise ta recherche</small>` : ''}</p>`;
+/* search results grouped by métier: each métier links to its orientation.ch page, with the localities where it has places */
+function plByJob(locs, n){
+  const by = new Map();
+  locs.forEach(d => d.items.forEach(it => { if(!by.has(it[1])) by.set(it[1], {n:0, url:null, at:new Map()});
+    const o = by.get(it[1]), k = it[2]||1; o.n += k; o.url = o.url || plUrlOf(it); o.at.set(d.l.k, {l:d.l, k:(o.at.has(d.l.k) ? o.at.get(d.l.k).k : 0) + k}); }));
+  const js = [...by].sort((a,b) => b[1].n - a[1].n || a[0].localeCompare(b[0],'fr')), maxJ = 15, maxL = js.length>3 ? 4 : 8;   // many métiers: fewer localities each, so the list stays short
+  const head = plJob ? `<button type="button" class="pl-back">← Tous les métiers</button>` : '';
+  if(!js.length) return `${head}<div class="k">Canton de Vaud</div><h3>Aucune place</h3><p>Rien ne correspond à ta recherche. Essaie un autre mot (par exemple « cuisinier » ou « informatique »).</p>`;
+  return `${head}<div class="k">${js.length} métier${js.length>1?'s':''} · canton de Vaud</div><h3>${nPl(n)}</h3>
+    <p class="pl-sub">Clique sur une localité pour voir les entreprises.</p>
+    ${js.slice(0,maxJ).map(([t,o]) => { const at = [...o.at.values()].sort((a,b) => b.k - a.k || a.l.name.localeCompare(b.l.name,'fr'));
+      return `<div class="pl-job pl-bj"><div>${o.url ? `<a href="${o.url}" target="_blank" rel="noopener">${esc(plJobName(t))}<span class="sr"> (orientation.ch, nouvel onglet)</span> ↗</a>` : esc(plJobName(t))}<span>${o.n}</span></div>
+        <div class="pl-locs">${at.slice(0,maxL).map(a => `<button type="button" class="pl-loc" data-loc="${esc(a.l.k)}"><span>${esc(a.l.name)}</span><b>${a.k}</b></button>`).join('')}</div>
+        ${at.length>maxL ? `<p class="pl-where">+ ${at.length-maxL} autre${at.length-maxL>1?'s':''} localité${at.length-maxL>1?'s':''} sur la carte</p>` : ''}
+        ${!plJob && js.length>1 ? `<button type="button" class="pl-only" data-job="${esc(t)}">Voir seulement ce métier sur la carte</button>` : ''}</div>`; }).join('')}
+    ${js.length>maxJ ? `<p class="src">+ ${js.length-maxJ} autres métiers sur la carte : précise ta recherche.</p>` : ''}`;
 }
 const plN = items => items.reduce((a,it)=>a+(it[2]||1), 0);   // a listing can offer several places
 const plByDom = items => { const c = {}; items.forEach(it => plDomsOf(it).forEach(d => c[d] = (c[d]||0) + (it[2]||1))); return c; };
@@ -2513,7 +2531,7 @@ function plUpdate(){
   side.querySelectorAll('[data-dom]').forEach(b => b.onclick = () => { plDom = +b.dataset.dom; plSel = null; plUpdate(); });
   side.querySelectorAll('[data-em]').forEach(b => b.onclick = () => plPickEm(+b.dataset.em));
   side.querySelectorAll('[data-job]').forEach(b => b.onclick = () => { plJob = b.dataset.job || null; plSel = null; plUpdate(); });
-  const bk = side.querySelector('.pl-back'); if(bk) bk.onclick = () => { if(plSel) plSel = null; else if(plEm!=null) plEm = null; else plDom = null; plUpdate(); };
+  const bk = side.querySelector('.pl-back'); if(bk) bk.onclick = () => { if(plSel) plSel = null; else if(plEm!=null) plEm = null; else if(plJob) plJob = null; else plDom = null; plUpdate(); };
 }
 function plPickEm(i){ plMode = 'ecole'; plDom = null; plSel = null; plEm = i; plUpdate(); }
 /* school markers (diamonds, a constant size on screen); shown in « Par école », the chosen school labelled */
@@ -2581,9 +2599,10 @@ function plSide(locs, n){
         ${jobs.map(([t,o]) => `<div class="pl-job"><div>${esc(t)}<span>${o.n}</span></div><p class="pl-where">${[...o.at].sort((a,b) => b[1]-a[1]).map(([l,k]) => esc(l)+(k>1?` (${k})`:'')).join(' · ')}</p></div>`).join('')}`
         : '<p>Aucune place publiée sur orientation.ch en ce moment dans ces métiers. Pour l’école, l’inscription se fait directement auprès d’elle.</p>'}${src}`;
   }
+  if(plMode!=='ecole' && !(plMode==='dom' && plDom) && (plQ.length>=2 || plJob)) return emHint + plByJob(locs, n) + src;
   if(plMode==='dom' && !plDom){
     const c = plByDom(locs.flatMap(d => d.items));
-    return `${emHint}${plJobChips()}<div class="k">Canton de Vaud · par domaine</div><h3>${nPl(n)}</h3>
+    return `${emHint}<div class="k">Canton de Vaud · par domaine</div><h3>${nPl(n)}</h3>
       <p>Choisis un domaine pour voir ses places sur la carte. Chaque point prend la couleur du domaine le plus présent dans la localité.</p>
       ${FAMILIES.map(f => { const ds = f.domains.filter(d => c[d.num]); return ds.length ? `<p class="pl-fam">${esc(f.short)}</p><div class="pl-locs">${ds.map(d =>
         `<button type="button" class="pl-loc" data-dom="${d.num}"><span><i class="pl-sw" style="background:${swatch(d.hue)}"></i>${d.num}. ${esc(d.name)}</span><b>${c[d.num]}</b></button>`).join('')}</div>` : ''; }).join('')}${src}`;
@@ -2597,7 +2616,7 @@ function plSide(locs, n){
       <p><b>${nPl(n)}</b> dans ${locs.length} localité${locs.length>1?'s':''}${plQ?' (filtre actif)':''}. Clique sur un point pour voir les entreprises.</p>
       ${jobs.map(([t,o]) => `<div class="pl-job"><div>${esc(t)}<span>${o.n}</span></div><p class="pl-where">${[...o.at].sort((a,b) => b[1]-a[1]).map(([l,k]) => esc(l)+(k>1?` (${k})`:'')).join(' · ')}</p></div>`).join('')}${src}`;
   }
-  return `${emHint}${plJobChips()}<div class="k">${plDom?`<i style="background:${swatch(domByNum[plDom].hue)}"></i>${esc(domByNum[plDom].num+'. '+domByNum[plDom].name)}`:'Canton de Vaud'}</div><h3>${nPl(n)}</h3>
+  return `${emHint}<div class="k">${plDom?`<i style="background:${swatch(domByNum[plDom].hue)}"></i>${esc(domByNum[plDom].num+'. '+domByNum[plDom].name)}`:'Canton de Vaud'}</div><h3>${nPl(n)}</h3>
     <p>${plQ || plDom || plJob ? 'correspondent à ton filtre, dans le canton de Vaud.' : 'publiées sur orientation.ch.'} Chaque point est un lieu de formation : plus il est grand, plus il y a de places. Clique sur un point ou une localité.</p>
     <div class="pl-locs">${locs.slice(0,25).map(d => `<button type="button" class="pl-loc" data-loc="${esc(d.l.k)}"><span class="pl-ln">${esc(d.l.name)}${plQ||plJob ? `<small>${[...new Set(d.items.map(it => plJobName(it[1])))].map(esc).join(' · ')}</small>` : ''}</span><b>${d.n}</b></button>`).join('')}</div>
     ${locs.length>25?`<p class="src">+ ${locs.length-25} autres localités sur la carte.</p>`:''}${src}`;
